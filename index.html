@@ -56,6 +56,10 @@ h1,h2,h3{margin:0}
 .top{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 2px 16px}
 .wordmark{font-weight:500;font-size:15px;letter-spacing:.01em}
 .wm-sub{color:var(--ink-2);font-weight:400;margin-left:6px}
+.ver{font:inherit;font-size:11px;font-weight:500;color:var(--ink-2);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:2px 7px;margin-right:8px;cursor:pointer;vertical-align:1px}
+.hist{list-style:none;padding:0;margin:8px 0 0}
+.hist li{padding:8px 0;border-top:1px solid var(--line);font-size:14px}
+.hist li b{font-weight:500;display:block;color:var(--ink)}
 .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:400;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2)}
 
 /* the card */
@@ -239,7 +243,7 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
 <body>
 <div class="app">
   <header class="top">
-    <div class="wordmark">GCS<span class="wm-sub">Greatest Card Scanner</span></div>
+    <div class="wordmark"><button class="ver" id="verBtn" type="button" aria-label="Version history"></button>GCS<span class="wm-sub">Greatest Card Scanner</span></div>
     <span class="pill" id="storagePill" hidden></span>
   </header>
 
@@ -326,21 +330,21 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
           <p class="error" hidden></p>
         </div>
         <div class="field">
-          <label for="cCompany">Company</label>
+          <label for="cCompany">Company <small>(optional)</small></label>
           <input id="cCompany" type="text" autocomplete="off">
         </div>
         <div class="field">
-          <label for="cTitle">Job title</label>
+          <label for="cTitle">Job title <small>(optional)</small></label>
           <input id="cTitle" type="text" autocomplete="off">
         </div>
         <div class="grid2">
           <div class="field" id="fEmail">
-            <label for="cEmail">Email</label>
+            <label for="cEmail">Email <small>(optional)</small></label>
             <input id="cEmail" type="email" inputmode="email" autocomplete="off">
             <p class="error" hidden></p>
           </div>
           <div class="field">
-            <label for="cPhone">Phone</label>
+            <label for="cPhone">Phone <small>(optional)</small></label>
             <input id="cPhone" type="tel" inputmode="tel" autocomplete="off">
           </div>
         </div>
@@ -443,16 +447,34 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
 
 <template id="profileTpl">
   <form class="pform" novalidate>
+    <p class="hint" style="margin:0 0 12px">Needed: first name, last name, and a mobile number or an email. Everything else is optional.</p>
     <div class="grid2">
       <label>First name<input name="first" type="text" autocomplete="given-name"></label>
       <label>Last name<input name="last" type="text" autocomplete="family-name"></label>
     </div>
     <label>Name in Arabic <small>(optional)</small><input name="ar" type="text" lang="ar" dir="rtl"></label>
-    <label>Job title<input name="title" type="text" autocomplete="organization-title"></label>
-    <label>Company<input name="company" type="text" autocomplete="organization"></label>
+    <label>Job title <small>(optional)</small><input name="title" type="text" autocomplete="organization-title"></label>
+    <label>Company <small>(optional)</small><input name="company" type="text" autocomplete="organization"></label>
     <label>Mobile<input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+971 ..."></label>
     <label>Email<input name="email" type="email" inputmode="email" autocomplete="email"></label>
     <label>Website or LinkedIn <small>(optional)</small><input name="web" type="url" inputmode="url" autocomplete="url"></label>
+    <div class="grid2">
+      <label>Department <small>(optional)</small><input name="department" type="text"></label>
+      <label>Office <small>(optional)</small><input name="office" type="text"></label>
+    </div>
+    <div class="grid2">
+      <label>Office phone <small>(optional)</small><input name="officePhone" type="tel" inputmode="tel"></label>
+      <label>Fax <small>(optional)</small><input name="fax" type="tel" inputmode="tel"></label>
+    </div>
+    <label>Street address <small>(optional)</small><input name="street" type="text" autocomplete="street-address"></label>
+    <div class="grid2">
+      <label>City <small>(optional)</small><input name="city" type="text" autocomplete="address-level2"></label>
+      <label>State or province <small>(optional)</small><input name="state" type="text" autocomplete="address-level1"></label>
+    </div>
+    <div class="grid2">
+      <label>Postal code <small>(optional)</small><input name="postal" type="text" autocomplete="postal-code"></label>
+      <label>Country <small>(optional)</small><input name="country" type="text" autocomplete="country-name"></label>
+    </div>
     <p class="error" hidden></p>
     <button class="btn btn-primary btn-block" type="submit">Save my card</button>
   </form>
@@ -546,6 +568,15 @@ function(e){return e.hasOwnProperty("authorization_endpoint")&&e.hasOwnProperty(
    readerUrl     Endpoint that reads card photos (Power Automate flow URL or reader worker URL).
    readerToken   Optional shared secret the endpoint checks.
    readerCareful true only for the Claude worker: shows "Read again carefully" (slower, more accurate model). */
+var APP_VERSION = '1.5';
+var CHANGELOG = [
+  ['1.5', 'Oct 1, 2026', 'Forms now show which fields are optional. Only name is needed to save a card; first name, last name and a mobile or email for your own card.'],
+  ['1.4', 'Oct 1, 2026', 'My card now pulls department, office, office phone, fax, address and photo from Microsoft. Version history added.'],
+  ['1.3', 'Oct 1, 2026', 'Sign in with your Microsoft account to fill your card. Company guessed from email when missing. Duplicate check on the phone and in Dataverse.'],
+  ['1.2', 'Oct 1, 2026', 'Cards saved into the Captured Cards table in Dataverse. App renamed GCS.'],
+  ['1.1', 'Sep 30, 2026', 'Front and back photos, automatic crop, reading by AI Builder in Power Automate.'],
+  ['1.0', 'Sep 29, 2026', 'First version: own QR card, capture, contacts list, CSV and JSON export.']
+];
 var CONFIG = {
   readerUrl: '',
   readerToken: '',
@@ -626,11 +657,15 @@ var CONFIG = {
     var lines = ['BEGIN:VCARD', 'VERSION:3.0',
       'N:' + esc(p.last) + ';' + esc(p.first) + ';;;',
       'FN:' + esc((p.first + ' ' + p.last).trim())];
-    if (p.company) lines.push('ORG:' + esc(p.company));
+    if (p.company || p.department) lines.push('ORG:' + esc(p.company) + (p.department ? ';' + esc(p.department) : ''));
     if (p.title) lines.push('TITLE:' + esc(p.title));
     if (p.phone) lines.push('TEL;TYPE=CELL:' + String(p.phone).replace(/\s+/g, ''));
+    if (p.officePhone && p.officePhone !== p.phone) lines.push('TEL;TYPE=WORK:' + String(p.officePhone).replace(/\s+/g, ''));
+    if (p.fax) lines.push('TEL;TYPE=FAX:' + String(p.fax).replace(/\s+/g, ''));
     if (p.email) lines.push('EMAIL;TYPE=WORK:' + p.email);
     if (p.web) lines.push('URL:' + p.web);
+    if (p.street || p.city || p.state || p.postal || p.country) lines.push('ADR;TYPE=WORK:;;' + esc(p.street) + ';' + esc(p.city) + ';' + esc(p.state) + ';' + esc(p.postal) + ';' + esc(p.country));
+    if (p.office) lines.push('NOTE:' + esc('Office: ' + p.office));
     lines.push('END:VCARD');
     return lines.join('\r\n');
   }
@@ -645,7 +680,7 @@ var CONFIG = {
     $('pName').textContent = full;
     $('pNameAr').textContent = profile.ar || ''; $('pNameAr').hidden = !profile.ar;
     $('pTitle').textContent = profile.title || ''; $('pTitle').hidden = !profile.title;
-    $('pOrg').textContent = profile.company || '';
+    $('pOrg').textContent = [profile.company, profile.department].filter(Boolean).join(', ') + (profile.office ? ' (' + profile.office + ')' : '');
     var q = $('myQR'); q.innerHTML = '';
     if (window.QRCode) new QRCode(q, { text: vcardOf(profile), width: 224, height: 224, colorDark: '#0E3B43', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
     else q.appendChild(el('p', null, 'QR code unavailable while offline'));
@@ -655,11 +690,11 @@ var CONFIG = {
     body.appendChild($('profileTpl').content.cloneNode(true));
     var f = body.querySelector('form');
     var vals = profile || {};
-    ['first', 'last', 'ar', 'title', 'company', 'phone', 'email', 'web'].forEach(function (n) { f.elements.namedItem(n).value = vals[n] || ''; });
+    ['first', 'last', 'ar', 'title', 'company', 'phone', 'email', 'web', 'department', 'office', 'officePhone', 'fax', 'street', 'city', 'state', 'postal', 'country'].forEach(function (n) { f.elements.namedItem(n).value = vals[n] || ''; });
     f.addEventListener('submit', function (ev) {
       ev.preventDefault();
-      var p = {};
-      ['first', 'last', 'ar', 'title', 'company', 'phone', 'email', 'web'].forEach(function (n) { p[n] = f.elements.namedItem(n).value.trim(); });
+      var p = Object.assign({}, profile || {});
+      ['first', 'last', 'ar', 'title', 'company', 'phone', 'email', 'web', 'department', 'office', 'officePhone', 'fax', 'street', 'city', 'state', 'postal', 'country'].forEach(function (n) { p[n] = f.elements.namedItem(n).value.trim(); });
       var err = f.querySelector('.error'), msg = '';
       if (!p.first || !p.last) msg = 'Add your first and last name.';
       else if (!p.phone && !p.email) msg = 'Add a mobile number or an email, so people can reach you.';
@@ -1574,7 +1609,7 @@ var CONFIG = {
     msToken(true).then(function (tok) {
       if (!tok) throw new Error('no token');
       var h = { Authorization: 'Bearer ' + tok };
-      return fetch('https://graph.microsoft.com/v1.0/me?$select=givenName,surname,displayName,jobTitle,mail,userPrincipalName,mobilePhone,businessPhones,companyName', { headers: h })
+      return fetch('https://graph.microsoft.com/v1.0/me?$select=givenName,surname,displayName,jobTitle,department,officeLocation,mail,userPrincipalName,mobilePhone,businessPhones,faxNumber,companyName,streetAddress,city,state,postalCode,country', { headers: h })
         .then(function (r) { if (!r.ok) throw new Error('profile ' + r.status); return r.json(); })
         .then(function (me) {
           var p = Object.assign({}, profile || {});
@@ -1583,7 +1618,17 @@ var CONFIG = {
           p.last = me.surname || name.slice(1).join(' ') || p.last || '';
           p.title = me.jobTitle || p.title || '';
           p.company = me.companyName || p.company || '';
-          p.phone = me.mobilePhone || (me.businessPhones && me.businessPhones[0]) || p.phone || '';
+          p.phone = me.mobilePhone || p.phone || '';
+          p.officePhone = (me.businessPhones && me.businessPhones[0]) || p.officePhone || '';
+          if (!p.phone) p.phone = p.officePhone;
+          p.fax = me.faxNumber || p.fax || '';
+          p.department = me.department || p.department || '';
+          p.office = me.officeLocation || p.office || '';
+          p.street = me.streetAddress || p.street || '';
+          p.city = me.city || p.city || '';
+          p.state = me.state || p.state || '';
+          p.postal = me.postalCode || p.postal || '';
+          p.country = me.country || p.country || '';
           p.email = me.mail || me.userPrincipalName || p.email || '';
           profile = p; store.set(K.profile, profile); renderMyCard();
           return fetch('https://graph.microsoft.com/v1.0/me/photos/120x120/$value', { headers: h }).then(function (r) { return r.ok ? r.blob() : null; }).catch(function () { return null; });
@@ -1603,6 +1648,15 @@ var CONFIG = {
     $('msSignIn').addEventListener('click', fillFromMicrosoft);
     $('msRefresh').addEventListener('click', fillFromMicrosoft);
   }
+
+  /* ---------- version history ---------- */
+  $('verBtn').textContent = 'v' + APP_VERSION;
+  $('verBtn').addEventListener('click', function () {
+    var body = openSheet('Version history');
+    var ul = el('ul', 'hist');
+    CHANGELOG.forEach(function (v) { var li = el('li'); li.appendChild(el('b', null, 'v' + v[0] + ', ' + v[1])); li.appendChild(document.createTextNode(v[2])); ul.appendChild(li); });
+    body.appendChild(ul);
+  });
 
   /* ---------- start ---------- */
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {}); } catch (e) {}
