@@ -1225,7 +1225,7 @@ var CONFIG = {
       officePhone: office, website: c.website || '', address: c.address || '', metAt: c.event || '',
       note: ('Consent: ' + (c.consent ? 'yes' : 'no') + (note ? '\n' + note : '')).slice(0, 3900),
       consent: c.consent ? 'Yes' : 'No',
-      capturedAt: fmt(c.capturedAt), capturedBy: profile ? (profile.first + ' ' + profile.last).trim() : 'unknown',
+      capturedAt: c.capturedAt || new Date().toISOString(), capturedBy: profile ? (profile.first + ' ' + profile.last).trim() : 'unknown',
       source: c.source || 'manual', token: readerToken()
     };
   }
