@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0E3B43">
-<title>Al Liwan Labs Cards</title>
+<title>GCS (Greatest Card Scanner)</title>
 <style>
 :root{
   box-sizing:border-box;
@@ -236,7 +236,7 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
 <body>
 <div class="app">
   <header class="top">
-    <div class="wordmark">Al Liwan Labs<span class="wm-sub">Cards</span></div>
+    <div class="wordmark">GCS<span class="wm-sub">Greatest Card Scanner</span></div>
     <span class="pill" id="storagePill" hidden></span>
   </header>
 
@@ -359,7 +359,7 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
         </div>
         <label class="consent">
           <input id="cConsent" type="checkbox">
-          <span>They agreed to be contacted by Al Liwan Labs.</span>
+          <span>They agreed to be contacted.</span>
         </label>
         <button class="btn btn-primary btn-block" id="cSave" type="submit">Save contact</button>
       </form>
@@ -570,7 +570,7 @@ var CONFIG = {
     var body = openSheet(profile ? 'Edit my card' : 'Set up my card');
     body.appendChild($('profileTpl').content.cloneNode(true));
     var f = body.querySelector('form');
-    var vals = profile || { company: 'Al Liwan Labs' };
+    var vals = profile || {};
     ['first', 'last', 'ar', 'title', 'company', 'phone', 'email', 'web'].forEach(function (n) { f.elements.namedItem(n).value = vals[n] || ''; });
     f.addEventListener('submit', function (ev) {
       ev.preventDefault();
@@ -1216,18 +1216,18 @@ var CONFIG = {
 
   /* ---------- save to Dataverse ---------- */
   function dataverseRow(c) {
-    var parts = String(c.name || '').trim().split(/\s+/), last = parts.length > 1 ? parts.pop() : parts[0] || 'Unknown', first = parts.length > 1 || parts.length === 1 && last !== parts[0] ? parts.join(' ') : '';
-    if (parts.length === 1 && parts[0] === last) first = '';
     var office = '', m = /Office\s*([+\d][\d\s().-]{5,})/i.exec(c.note || '');
     if (m) office = m[1].trim();
-    var lines = [];
-    if (c.company) lines.push('Company: ' + c.company);
-    if (c.website) lines.push('Website: ' + c.website);
-    if (c.event) lines.push('Met at: ' + c.event);
-    lines.push('Consent to contact: ' + (c.consent ? 'yes' : 'no'));
-    lines.push('Captured by: ' + (profile ? (profile.first + ' ' + profile.last).trim() : 'unknown') + ' on ' + fmt(c.capturedAt));
-    if (c.note) lines.push('Note: ' + c.note);
-    return { v: 1, firstname: first, lastname: last, jobtitle: c.title || '', emailaddress1: c.email || '', mobilephone: c.phone || '', telephone1: office, address1_line1: c.address || '', description: lines.join('\n').slice(0, 1900), token: readerToken() };
+    var note = (c.note || '').replace(/From the card:\s*/i, 'From the card: ');
+    return {
+      v: 2,
+      name: c.name || '', company: c.company || '', title: c.title || '', email: c.email || '', phone: c.phone || '',
+      officePhone: office, website: c.website || '', address: c.address || '', metAt: c.event || '',
+      note: ('Consent: ' + (c.consent ? 'yes' : 'no') + (note ? '\n' + note : '')).slice(0, 3900),
+      consent: c.consent ? 'Yes' : 'No',
+      capturedAt: fmt(c.capturedAt), capturedBy: profile ? (profile.first + ' ' + profile.last).trim() : 'unknown',
+      source: c.source || 'manual', token: readerToken()
+    };
   }
   var syncing = false;
   function syncContact(c) {
@@ -1325,7 +1325,7 @@ var CONFIG = {
     });
     return '\uFEFF' + rows.join('\r\n');
   }
-  function toJSON() { return JSON.stringify({ app: 'alliwan-cards', exportedAt: new Date().toISOString(), contacts: contacts }, null, 2); }
+  function toJSON() { return JSON.stringify({ app: 'gcs-cards', exportedAt: new Date().toISOString(), contacts: contacts }, null, 2); }
   function useCap(name, ms) {
     try {
       if (window.claude && typeof window.claude.use === 'function') {
