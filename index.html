@@ -165,6 +165,7 @@ textarea{min-height:84px;resize:vertical}
 .cname{font-weight:500;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .csub{color:var(--ink-2);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cwhen{color:var(--ink-2);font-size:12px;flex:none;text-align:right}
+.csub.ok{color:var(--ok)} .csub.warn{color:var(--err)}
 .empty{border:1px dashed var(--line);border-radius:var(--radius-card);padding:24px 18px;text-align:center;color:var(--ink-2);margin-top:14px}
 .empty .btn{margin-top:12px}
 
@@ -376,7 +377,7 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
 
       <section class="section">
         <h2>Export</h2>
-        <p class="sub">Everything stays on this phone until you export it. CSV opens in Excel and imports into Dataverse or Outlook.</p>
+        <p class="sub" id="exportSub">Everything stays on this phone until you export it. CSV opens in Excel and imports into Dataverse or Outlook.</p>
         <div class="row">
           <button class="btn btn-secondary" id="expCsv" type="button">Export CSV</button>
           <button class="btn btn-secondary" id="expJson" type="button">Export JSON</button>
@@ -384,6 +385,9 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
         <div class="row">
           <button class="btn btn-secondary" id="impJson" type="button">Import JSON</button>
           <button class="btn btn-secondary danger" id="delAll" type="button">Delete all</button>
+        </div>
+        <div class="row" id="syncRow" hidden>
+          <button class="btn btn-primary" id="syncBtn" type="button">Send to Dataverse now</button>
         </div>
         <p class="hint" style="margin-top:14px"><button class="link-btn" id="readerSettings" type="button">Card reader settings</button></p>
       </section>
@@ -467,7 +471,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
 var CONFIG = {
   readerUrl: '',
   readerToken: '',
-  readerCareful: false
+  readerCareful: false,
+  saveUrl: ''
 };
 (function () {
   function $(id) { return document.getElementById(id); }
@@ -711,6 +716,7 @@ var CONFIG = {
   var readerCfg = store.get(K.reader, null) || {};
   function readerUrl() { return String(readerCfg.url || CONFIG.readerUrl || '').trim(); }
   function readerToken() { return String(readerCfg.token || CONFIG.readerToken || ''); }
+  function saveUrl() { return String(readerCfg.saveUrl || CONFIG.saveUrl || '').trim(); }
   function canRead() { return !!readerUrl() || sampleOk; }
   function hostOf(u) { try { return new URL(u).host; } catch (e) { return String(u); } }
   function parseSetupLink() {
@@ -720,18 +726,20 @@ var CONFIG = {
     if (!/^https:\/\//i.test(url)) return null;
     var t = h.match(/(?:^|&)rtoken=([^&]+)/), token = '';
     if (t) { try { token = decodeURIComponent(t[1]); } catch (e) {} }
-    return { url: url, token: token };
+    var sv = h.match(/(?:^|&)saver=([^&]+)/), saver = '';
+    if (sv) { try { saver = decodeURIComponent(sv[1]); } catch (e) {} if (!/^https:\/\//i.test(saver)) saver = ''; }
+    return { url: url, token: token, saveUrl: saver };
   }
   function setupLinkFor(cfg) {
-    return location.href.split('#')[0] + '#reader=' + encodeURIComponent(cfg.url) + (cfg.token ? '&rtoken=' + encodeURIComponent(cfg.token) : '');
+    return location.href.split('#')[0] + '#reader=' + encodeURIComponent(cfg.url) + (cfg.token ? '&rtoken=' + encodeURIComponent(cfg.token) : '') + (cfg.saveUrl ? '&saver=' + encodeURIComponent(cfg.saveUrl) : '');
   }
   function offerSetupLink() {
     var incoming = parseSetupLink();
-    if (!incoming || (incoming.url === readerCfg.url && incoming.token === (readerCfg.token || ''))) return;
+    if (!incoming || (incoming.url === readerCfg.url && incoming.token === (readerCfg.token || '') && (incoming.saveUrl || '') === (readerCfg.saveUrl || ''))) return;
     var body = openSheet('Connect the card reader');
     body.appendChild(el('p', null, 'This link connects the app to the card reader at'));
     var host = el('p', 'host-line', hostOf(incoming.url)); body.appendChild(host);
-    body.appendChild(el('p', null, 'Photos of cards you capture are sent there to be read. Connect only if the link came from your company.'));
+    body.appendChild(el('p', null, (incoming.saveUrl ? 'Photos of cards you capture are sent there to be read, and saved contacts go to your company\u2019s Dataverse. ' : 'Photos of cards you capture are sent there to be read. ') + 'Connect only if the link came from your company.'));
     var row = el('div', 'row');
     var ok = el('button', 'btn btn-primary', 'Connect'); ok.type = 'button';
     ok.addEventListener('click', function () { readerCfg = incoming; store.set(K.reader, readerCfg); closeSheet(); updatePhotoUI(); toast('Card reader connected'); });
@@ -750,8 +758,9 @@ var CONFIG = {
     var f = el('form'); f.noValidate = true;
     var l1 = el('label', null, 'Reader URL'); var i1 = el('input'); i1.type = 'url'; i1.placeholder = 'https://…'; i1.value = readerCfg.url || ''; i1.autocomplete = 'off'; l1.appendChild(i1);
     var l2 = el('label', null, 'Token (optional)'); var i2 = el('input'); i2.type = 'text'; i2.value = readerCfg.token || ''; i2.autocomplete = 'off'; l2.appendChild(i2);
-    l1.style.marginTop = '14px'; l2.style.marginTop = '10px';
-    f.appendChild(l1); f.appendChild(l2);
+    var l3 = el('label', null, 'Save to Dataverse URL (optional)'); var i3 = el('input'); i3.type = 'url'; i3.placeholder = 'https://\u2026'; i3.value = readerCfg.saveUrl || ''; i3.autocomplete = 'off'; l3.appendChild(i3);
+    l1.style.marginTop = '14px'; l2.style.marginTop = '10px'; l3.style.marginTop = '10px';
+    f.appendChild(l1); f.appendChild(l2); f.appendChild(l3);
     var row = el('div', 'row');
     var save = el('button', 'btn btn-primary', 'Save'); save.type = 'submit';
     var clear = el('button', 'btn btn-secondary', 'Use the built-in setting'); clear.type = 'button';
@@ -760,13 +769,13 @@ var CONFIG = {
     var note = el('p', 'hint', CONFIG.readerUrl ? 'Built-in reader: ' + CONFIG.readerUrl : 'No built-in reader in this copy.'); note.style.marginTop = '12px'; f.appendChild(note);
     f.addEventListener('submit', function (ev) {
       ev.preventDefault();
-      var u = i1.value.trim();
-      if (u && !/^https:\/\//i.test(u)) { toast('The reader URL must start with https://'); return; }
-      readerCfg = { url: u, token: i2.value.trim() }; store.set(K.reader, readerCfg);
+      var u = i1.value.trim(), sv = i3.value.trim();
+      if ((u && !/^https:\/\//i.test(u)) || (sv && !/^https:\/\//i.test(sv))) { toast('Addresses must start with https://'); return; }
+      readerCfg = { url: u, token: i2.value.trim(), saveUrl: sv }; store.set(K.reader, readerCfg);
       closeSheet(); updatePhotoUI(); toast(u ? 'Reader saved' : 'Reader cleared');
     });
     body.appendChild(f);
-    if (readerCfg.url) {
+    if (readerCfg.url || readerCfg.saveUrl) {
       var share = el('button', 'btn btn-secondary btn-block', 'Copy setup link for colleagues'); share.type = 'button'; share.style.marginTop = '14px';
       share.addEventListener('click', function () { copyText(setupLinkFor(readerCfg), 'Setup link copied'); });
       body.appendChild(share);
@@ -1033,7 +1042,9 @@ var CONFIG = {
     return new Blob([u], { type: mime });
   }
   function pick(shot) { return shot ? ((useCrop && shot.crop) ? shot.crop : shot.raw) : null; }
+  function updateExportSub() { $('exportSub').textContent = saveUrl() ? 'Each saved card is also sent to your company\u2019s Dataverse. Export is still here for Excel.' : 'Everything stays on this phone until you export it. CSV opens in Excel and imports into Dataverse or Outlook.'; }
   function updatePhotoUI() {
+    updateExportSub();
     var anyCrop = false;
     ['front', 'back'].forEach(function (side) {
       var slot = $(side === 'front' ? 'slotFront' : 'slotBack'), img = slot.querySelector('img'), add = slot.querySelector('.slot-add'), v = pick(shots[side]);
@@ -1173,8 +1184,12 @@ var CONFIG = {
     if (!persistContacts()) { if (!editingId) contacts.shift(); return; }
     settings.event = c.event; store.set(K.settings, settings);
     var wasEdit = !!editingId;
+    var saved = wasEdit ? null : contacts[0];
     resetForm();
     toast((wasEdit ? 'Updated ' : 'Saved ') + c.name);
+    if (saved && saveUrl()) {
+      syncContact(saved).then(function (ok) { persistContacts(); renderContacts(); toast(ok ? 'Saved to Dataverse' : 'Saved on the phone. Will send to Dataverse later.'); });
+    }
     if (wasEdit) showTab('contacts');
     else window.scrollTo(0, 0);
   });
@@ -1199,6 +1214,40 @@ var CONFIG = {
     });
   }
 
+  /* ---------- save to Dataverse ---------- */
+  function dataverseRow(c) {
+    var parts = String(c.name || '').trim().split(/\s+/), last = parts.length > 1 ? parts.pop() : parts[0] || 'Unknown', first = parts.length > 1 || parts.length === 1 && last !== parts[0] ? parts.join(' ') : '';
+    if (parts.length === 1 && parts[0] === last) first = '';
+    var office = '', m = /Office\s*([+\d][\d\s().-]{5,})/i.exec(c.note || '');
+    if (m) office = m[1].trim();
+    var lines = [];
+    if (c.company) lines.push('Company: ' + c.company);
+    if (c.website) lines.push('Website: ' + c.website);
+    if (c.event) lines.push('Met at: ' + c.event);
+    lines.push('Consent to contact: ' + (c.consent ? 'yes' : 'no'));
+    lines.push('Captured by: ' + (profile ? (profile.first + ' ' + profile.last).trim() : 'unknown') + ' on ' + fmt(c.capturedAt));
+    if (c.note) lines.push('Note: ' + c.note);
+    return { v: 1, firstname: first, lastname: last, jobtitle: c.title || '', emailaddress1: c.email || '', mobilephone: c.phone || '', telephone1: office, address1_line1: c.address || '', description: lines.join('\n').slice(0, 1900), token: readerToken() };
+  }
+  var syncing = false;
+  function syncContact(c) {
+    if (!saveUrl() || c.synced) return Promise.resolve(false);
+    return fetch(saveUrl(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(dataverseRow(c)) })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); c.synced = true; c.syncedAt = new Date().toISOString(); c.syncError = ''; return true; })
+      .catch(function (e) { c.synced = false; c.syncError = String(e && e.message || e); return false; });
+  }
+  function syncAll(quiet) {
+    if (syncing || !saveUrl()) return;
+    var pending = contacts.filter(function (c) { return !c.synced; });
+    if (!pending.length) { if (!quiet) toast('Everything is already in Dataverse'); return; }
+    syncing = true; if (!quiet) toast('Sending ' + pending.length + ' to Dataverse');
+    pending.reduce(function (p, c) { return p.then(function () { return syncContact(c); }); }, Promise.resolve()).then(function () {
+      syncing = false; persistContacts(); renderContacts();
+      var left = contacts.filter(function (c) { return !c.synced; }).length;
+      if (!quiet || !left) toast(left ? left + ' still waiting. Check the connection and try again.' : 'All contacts are in Dataverse');
+    });
+  }
+
   /* ---------- contacts ---------- */
   function renderContacts() {
     var q = $('search').value.trim().toLowerCase();
@@ -1209,6 +1258,7 @@ var CONFIG = {
     });
     $('cCount').textContent = contacts.length ? (q ? shown.length + ' of ' + contacts.length : contacts.length + (contacts.length === 1 ? ' saved' : ' saved')) : '';
     $('cEmpty').hidden = contacts.length > 0;
+    $('syncRow').hidden = !saveUrl() || !contacts.some(function (c) { return !c.synced; });
     if (contacts.length && !shown.length) list.appendChild(el('li', 'muted', 'No matches.'));
     shown.forEach(function (c) {
       var li = el('li'), b = el('button', 'crow'); b.type = 'button';
@@ -1219,12 +1269,14 @@ var CONFIG = {
       svg.appendChild(path); svg.appendChild(txt);
       var main = el('div', 'cmain'); main.appendChild(el('div', 'cname', c.name));
       main.appendChild(el('div', 'csub', [c.company, c.event].filter(Boolean).join(', ') || c.email || c.phone || ''));
+      if (saveUrl()) main.appendChild(el('div', 'csub ' + (c.synced ? 'ok' : 'warn'), c.synced ? 'In Dataverse' : 'Not sent to Dataverse yet'));
       b.appendChild(svg); b.appendChild(main); b.appendChild(el('div', 'cwhen', fmtShort(c.capturedAt)));
       b.addEventListener('click', function () { openContact(c.id); });
       li.appendChild(b); list.appendChild(li);
     });
   }
   $('search').addEventListener('input', renderContacts);
+  $('syncBtn').addEventListener('click', function () { syncAll(false); });
   $('emptyCapture').addEventListener('click', function () { showTab('capture'); $('cName').focus(); });
 
   function openContact(id) {
@@ -1240,6 +1292,7 @@ var CONFIG = {
     add('Address', c.address);
     add('Met at', c.event); add('Note', c.note);
     add('Consent', c.consent ? 'Agreed to be contacted' : 'Not recorded');
+    if (saveUrl()) add('Dataverse', c.synced ? 'Saved ' + fmt(c.syncedAt) : 'Not sent yet' + (c.syncError ? ' (' + c.syncError + ')' : ''));
     add('Captured', fmt(c.capturedAt) + (c.source === 'qr' ? ', from a QR code' : c.source === 'photo' ? ', from a card photo' : c.source === 'import' ? ', imported' : ''));
     body.appendChild(dl);
     var row = el('div', 'row');
@@ -1354,6 +1407,7 @@ var CONFIG = {
   if (navigator.standalone === false && !settings.hideInstall) $('installHint').hidden = false;
   $('installDismiss').addEventListener('click', function () { settings.hideInstall = true; store.set(K.settings, settings); $('installHint').hidden = true; });
   offerSetupLink();
+  setTimeout(function () { syncAll(true); }, 1500);
   $('cEvent').value = settings.event || '';
   renderMyCard();
   renderContacts();
