@@ -288,6 +288,7 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
       </div>
       <div class="row" id="cardActions" hidden>
         <button class="btn btn-secondary" id="editCardBtn" type="button">Edit my card</button>
+        <button class="btn btn-primary" id="publishBtn" type="button" hidden>Publish my card</button>
         <button class="btn btn-secondary" id="previewPageBtn" type="button">Preview my page</button>
         <button class="btn btn-secondary" id="copyLinkBtn" type="button">Copy page link</button>
         <button class="btn btn-secondary" id="copyCardBtn" type="button">Copy details</button>
@@ -577,8 +578,10 @@ function(e){return e.hasOwnProperty("authorization_endpoint")&&e.hasOwnProperty(
    readerUrl     Endpoint that reads card photos (Power Automate flow URL or reader worker URL).
    readerToken   Optional shared secret the endpoint checks.
    readerCareful true only for the Claude worker: shows "Read again carefully" (slower, more accurate model). */
-var APP_VERSION = '1.7';
+var APP_VERSION = '1.9';
 var CHANGELOG = [
+  ['1.9', 'Oct 2, 2026', 'Publish my card is connected to Dataverse. One tap gives you a verified card page with a short link.'],
+  ['1.8', 'Oct 2, 2026', 'Publish my card: a verified web page with a short link, checked against your Microsoft sign-in (needs the publish link in the setup). A settings switch (quirks) controls the playful wording.'],
   ['1.7', 'Oct 2, 2026', 'My card can now open a web page (card.html) when someone scans the QR: they save your contact and can leave their details. Choose what the QR opens under it.'],
   ['1.6', 'Oct 1, 2026', 'The app checks for a newer version when it opens and reloads itself, so phones no longer run old copies.'],
   ['1.5', 'Oct 1, 2026', 'Forms now show which fields are optional. Only name is needed to save a card; first name, last name and a mobile or email for your own card.'],
@@ -593,6 +596,8 @@ var CONFIG = {
   readerToken: '',
   readerCareful: false,
   saveUrl: '',
+  publishUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/08/workflows/96f7caa1d6b5441591a6f0b8a9d64796/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=cRhnPJvAQrIlgS92tM04VEcEhR4b8DtQI1iSI9z5KIo',   /* Power Automate 'Publish my card' flow. Checks the Microsoft sign-in before saving. */
+  quirks: true,     /* true = playful Great Teacher Onizuka wording in a few places. false = plain wording. */
   /* Microsoft sign-in (fills My card from the work account). Paste the values from the
      Entra app registration "GCS Card Scanner". Leave empty to hide the sign-in button. */
   msClientId: 'c098890f-66d9-43f0-a317-be3c4a4dd2a3',
@@ -623,7 +628,7 @@ var CONFIG = {
   function uid() { return 'c_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
   function today() { return new Date().toISOString().slice(0, 10); }
   var toastTimer;
-  function toast(msg) { var t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2400); }
+  function toast(msg) { var t = $('toast'); t.textContent = quirkMsg(msg); t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2400); }
   function copyText(t, okMsg) {
     var fallback = function () {
       var ta = document.createElement('textarea'); ta.value = t; ta.setAttribute('readonly', '');
@@ -693,15 +698,21 @@ var CONFIG = {
     $('pTitle').textContent = profile.title || ''; $('pTitle').hidden = !profile.title;
     $('pOrg').textContent = [profile.company, profile.department].filter(Boolean).join(', ') + (profile.office ? ' (' + profile.office + ')' : '');
     drawMyQR();
+    var pbtn = $('publishBtn'); pbtn.hidden = !(publishUrl() && msReady()); pbtn.textContent = profile.cardId ? 'Update my page' : 'Publish my card';
   }
   /* ---------- web page link and QR ---------- */
   var cardLink = '', qrTicket = 0;
   function b64u(bytes) { var x = ''; for (var i = 0; i < bytes.length; i++) x += String.fromCharCode(bytes[i]); return btoa(x).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
-  function buildCardLink(p) {
+  function cardPayload(p) {
     var map = { f: p.first, l: p.last, a: p.ar, t: p.title, o: p.company, d: p.department, m: p.phone, p: p.officePhone, e: p.email, u: p.web,
                 s: [p.street, p.city, p.state, p.postal, p.country].filter(Boolean).join(', ') }, o = {};
     Object.keys(map).forEach(function (k) { if (map[k]) o[k] = map[k]; });
-    var bytes = new TextEncoder().encode(JSON.stringify(o)), base = new URL('card.html', location.href).href.split('#')[0];
+    return o;
+  }
+  function buildCardLink(p) {
+    var base = new URL('card.html', location.href).href.split('#')[0];
+    if (p.cardId && /^[A-Za-z0-9_-]{6,40}$/.test(p.cardId)) return Promise.resolve(base + '?c=' + encodeURIComponent(p.cardId));
+    var bytes = new TextEncoder().encode(JSON.stringify(cardPayload(p)));
     if (window.CompressionStream) {
       var cs = new CompressionStream('deflate-raw');
       return new Response(new Blob([bytes]).stream().pipeThrough(cs)).arrayBuffer().then(function (buf) { return base + '#z=' + b64u(new Uint8Array(buf)); });
@@ -709,7 +720,7 @@ var CONFIG = {
     return Promise.resolve(base + '#d=' + b64u(bytes));
   }
   function drawMyQR() {
-    var q = $('myQR'), mode = settings.qrMode === 'page' ? 'page' : 'contact', ticket = ++qrTicket;
+    var q = $('myQR'), mode = (settings.qrMode === 'page' || (!settings.qrMode && profile.cardId)) ? 'page' : 'contact', ticket = ++qrTicket;
     var btns = $('qrMode').querySelectorAll('button');
     for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('on', btns[i].dataset.mode === mode);
     buildCardLink(profile).then(function (l) { cardLink = l; }, function () { cardLink = ''; });
@@ -723,8 +734,9 @@ var CONFIG = {
     buildCardLink(profile).then(function (l) {
       if (ticket !== qrTicket) return;
       cardLink = l; q.innerHTML = '';
-      new QRCode(q, { text: l, width: 280, height: 280, colorDark: '#0E3B43', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.L });
-      $('qrCap').textContent = 'Point any phone camera here to open my card page.';
+      var shortLink = l.indexOf('?c=') > 0, size = shortLink ? 240 : 280;
+      new QRCode(q, { text: l, width: size, height: size, colorDark: '#0E3B43', colorLight: '#ffffff', correctLevel: shortLink ? QRCode.CorrectLevel.M : QRCode.CorrectLevel.L });
+      $('qrCap').textContent = shortLink ? 'Point any phone camera here to open my verified card page.' : 'Point any phone camera here to open my card page.';
     });
   }
   $('qrMode').addEventListener('click', function (e) {
@@ -733,6 +745,62 @@ var CONFIG = {
   });
   $('previewPageBtn').addEventListener('click', function () { if (cardLink) window.open(cardLink, '_blank', 'noopener'); else toast('One moment, then tap again.'); });
   $('copyLinkBtn').addEventListener('click', function () { if (cardLink) copyText(cardLink, 'Page link copied'); else toast('One moment, then tap again.'); });
+
+  /* ---------- publish my card: a verified page with a short link ---------- */
+  function publishCard(silent) {
+    if (!publishUrl() || !msReady() || !profile) return Promise.resolve(false);
+    if (!silent) toast('Publishing your card');
+    return msToken(!silent).then(function (tok) {
+      if (!tok) throw new Error('no sign-in');
+      return fetch(publishUrl(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ v: 1, token: tok, card: cardPayload(profile) }) });
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (j) {
+      if (!j || !j.ok || !/^[A-Za-z0-9_-]{6,40}$/.test(j.id || '')) throw new Error('bad reply');
+      profile.cardId = j.id; profile.cardPublishedAt = new Date().toISOString(); store.set(K.profile, profile);
+      if (!silent) { settings.qrMode = 'page'; store.set(K.settings, settings); }
+      renderMyCard();
+      if (!silent) toast('Your card page is live');
+      return true;
+    }).catch(function () {
+      if (!silent) toast('Couldn\u2019t publish. Sign in again and retry.');
+      return false;
+    });
+  }
+  $('publishBtn').addEventListener('click', function () { publishCard(false); });
+
+  /* ---------- personality: Great Teacher Onizuka mode (CONFIG.quirks) ---------- */
+  var QUIRKS = {
+    text: {
+      '#myCardEmpty h1': 'Your card, rookie',
+      '#myCardEmpty .role': 'Set it up once. Then anyone can scan the Great Teacher and save the number. No app needed.',
+      '#cEmpty p': 'No contacts yet. Go make some friends.'
+    },
+    placeholders: {
+      '#cName': 'Name (not \u201cStudent A\u201d)',
+      '#cEvent': 'e.g. GITEX 2026 (or a bike meet)',
+      '#cNote': 'What do they need from the Great Teacher?',
+      '#search': 'Search name, company, event, rival gang'
+    },
+    toasts: [
+      [/^Saved (?!to |on )(.+)$/, 'Got $1. Another one for the list.'],
+      [/^Details copied$/, 'Copied. Go forth, Great Teacher.'],
+      [/^Your card is ready$/, 'Your card is ready. Go be great.'],
+      [/^Your card page is live$/, 'Your page is live. Onizuka approves.']
+    ]
+  };
+  function quirkMsg(msg) {
+    if (!CONFIG.quirks) return msg;
+    for (var i = 0; i < QUIRKS.toasts.length; i++) if (QUIRKS.toasts[i][0].test(msg)) return msg.replace(QUIRKS.toasts[i][0], QUIRKS.toasts[i][1]);
+    return msg;
+  }
+  function applyQuirks() {
+    if (!CONFIG.quirks) return;
+    Object.keys(QUIRKS.text).forEach(function (sel) { var n = document.querySelector(sel); if (n) n.textContent = QUIRKS.text[sel]; });
+    Object.keys(QUIRKS.placeholders).forEach(function (sel) { var n = document.querySelector(sel); if (n) n.setAttribute('placeholder', QUIRKS.placeholders[sel]); });
+  }
+  applyQuirks();
   function openProfileForm() {
     var body = openSheet(profile ? 'Edit my card' : 'Set up my card');
     body.appendChild($('profileTpl').content.cloneNode(true));
@@ -752,6 +820,7 @@ var CONFIG = {
       if (p.web && !/^https?:\/\//i.test(p.web)) p.web = 'https://' + p.web;
       profile = p; store.set(K.profile, profile);
       closeSheet(); renderMyCard(); toast(vals.first ? 'Card updated' : 'Your card is ready');
+      if (profile.cardId) publishCard(true);
     });
     setTimeout(function () { f.elements.namedItem('first').focus(); }, 300);
   }
@@ -884,6 +953,7 @@ var CONFIG = {
   function readerUrl() { return String(readerCfg.url || CONFIG.readerUrl || '').trim(); }
   function readerToken() { return String(readerCfg.token || CONFIG.readerToken || ''); }
   function saveUrl() { return String(readerCfg.saveUrl || CONFIG.saveUrl || '').trim(); }
+  function publishUrl() { return String(readerCfg.publishUrl || CONFIG.publishUrl || '').trim(); }
   function canRead() { return !!readerUrl() || sampleOk; }
   function hostOf(u) { try { return new URL(u).host; } catch (e) { return String(u); } }
   function parseSetupLink() {
@@ -895,14 +965,16 @@ var CONFIG = {
     if (t) { try { token = decodeURIComponent(t[1]); } catch (e) {} }
     var sv = h.match(/(?:^|&)saver=([^&]+)/), saver = '';
     if (sv) { try { saver = decodeURIComponent(sv[1]); } catch (e) {} if (!/^https:\/\//i.test(saver)) saver = ''; }
-    return { url: url, token: token, saveUrl: saver };
+    var pb = h.match(/(?:^|&)publisher=([^&]+)/), publisher = '';
+    if (pb) { try { publisher = decodeURIComponent(pb[1]); } catch (e) {} if (!/^https:\/\//i.test(publisher)) publisher = ''; }
+    return { url: url, token: token, saveUrl: saver, publishUrl: publisher };
   }
   function setupLinkFor(cfg) {
-    return location.href.split('#')[0] + '#reader=' + encodeURIComponent(cfg.url) + (cfg.token ? '&rtoken=' + encodeURIComponent(cfg.token) : '') + (cfg.saveUrl ? '&saver=' + encodeURIComponent(cfg.saveUrl) : '');
+    return location.href.split('#')[0] + '#reader=' + encodeURIComponent(cfg.url) + (cfg.token ? '&rtoken=' + encodeURIComponent(cfg.token) : '') + (cfg.saveUrl ? '&saver=' + encodeURIComponent(cfg.saveUrl) : '') + (cfg.publishUrl ? '&publisher=' + encodeURIComponent(cfg.publishUrl) : '');
   }
   function offerSetupLink() {
     var incoming = parseSetupLink();
-    if (!incoming || (incoming.url === readerCfg.url && incoming.token === (readerCfg.token || '') && (incoming.saveUrl || '') === (readerCfg.saveUrl || ''))) return;
+    if (!incoming || (incoming.url === readerCfg.url && incoming.token === (readerCfg.token || '') && (incoming.saveUrl || '') === (readerCfg.saveUrl || '') && (incoming.publishUrl || '') === (readerCfg.publishUrl || ''))) return;
     var body = openSheet('Connect the card reader');
     body.appendChild(el('p', null, 'This link connects the app to the card reader at'));
     var host = el('p', 'host-line', hostOf(incoming.url)); body.appendChild(host);
@@ -927,7 +999,8 @@ var CONFIG = {
     var l2 = el('label', null, 'Token (optional)'); var i2 = el('input'); i2.type = 'text'; i2.value = readerCfg.token || ''; i2.autocomplete = 'off'; l2.appendChild(i2);
     var l3 = el('label', null, 'Save to Dataverse URL (optional)'); var i3 = el('input'); i3.type = 'url'; i3.placeholder = 'https://\u2026'; i3.value = readerCfg.saveUrl || ''; i3.autocomplete = 'off'; l3.appendChild(i3);
     l1.style.marginTop = '14px'; l2.style.marginTop = '10px'; l3.style.marginTop = '10px';
-    f.appendChild(l1); f.appendChild(l2); f.appendChild(l3);
+    var l4 = el('label', null, 'Publish card URL (optional)'); var i4 = el('input'); i4.type = 'url'; i4.placeholder = 'https://\u2026'; i4.value = readerCfg.publishUrl || ''; i4.autocomplete = 'off'; l4.appendChild(i4); l4.style.marginTop = '10px';
+    f.appendChild(l1); f.appendChild(l2); f.appendChild(l3); f.appendChild(l4);
     var row = el('div', 'row');
     var save = el('button', 'btn btn-primary', 'Save'); save.type = 'submit';
     var clear = el('button', 'btn btn-secondary', 'Use the built-in setting'); clear.type = 'button';
@@ -936,13 +1009,13 @@ var CONFIG = {
     var note = el('p', 'hint', CONFIG.readerUrl ? 'Built-in reader: ' + CONFIG.readerUrl : 'No built-in reader in this copy.'); note.style.marginTop = '12px'; f.appendChild(note);
     f.addEventListener('submit', function (ev) {
       ev.preventDefault();
-      var u = i1.value.trim(), sv = i3.value.trim();
-      if ((u && !/^https:\/\//i.test(u)) || (sv && !/^https:\/\//i.test(sv))) { toast('Addresses must start with https://'); return; }
-      readerCfg = { url: u, token: i2.value.trim(), saveUrl: sv }; store.set(K.reader, readerCfg);
+      var u = i1.value.trim(), sv = i3.value.trim(), pbv = i4.value.trim();
+      if ((u && !/^https:\/\//i.test(u)) || (sv && !/^https:\/\//i.test(sv)) || (pbv && !/^https:\/\//i.test(pbv))) { toast('Addresses must start with https://'); return; }
+      readerCfg = { url: u, token: i2.value.trim(), saveUrl: sv, publishUrl: pbv }; store.set(K.reader, readerCfg);
       closeSheet(); updatePhotoUI(); toast(u ? 'Reader saved' : 'Reader cleared');
     });
     body.appendChild(f);
-    if (readerCfg.url || readerCfg.saveUrl) {
+    if (readerCfg.url || readerCfg.saveUrl || readerCfg.publishUrl) {
       var share = el('button', 'btn btn-secondary btn-block', 'Copy setup link for colleagues'); share.type = 'button'; share.style.marginTop = '14px';
       share.addEventListener('click', function () { copyText(setupLinkFor(readerCfg), 'Setup link copied'); });
       body.appendChild(share);
@@ -1685,7 +1758,7 @@ var CONFIG = {
           if (!blob) return;
           return new Promise(function (res) { var rd = new FileReader(); rd.onload = function () { profile.photo = String(rd.result); store.set(K.profile, profile); renderMyCard(); res(); }; rd.onerror = function () { res(); }; rd.readAsDataURL(blob); });
         })
-        .then(function () { toast('Your card is filled from your Microsoft account'); });
+        .then(function () { toast('Your card is filled from your Microsoft account'); if (profile.cardId) publishCard(true); });
     }).catch(function (e) {
       var m = String(e && (e.errorCode || e.message) || '');
       toast(/user_cancelled|popup_window_error|interaction_in_progress/.test(m) ? 'Sign-in was closed before finishing' : 'Couldn\u2019t fill from Microsoft. You can still type your details.');

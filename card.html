@@ -175,27 +175,27 @@ textarea{min-height:88px;resize:vertical}
         <form id="form" novalidate autocomplete="on">
           <div class="field" id="fName">
             <label for="iName" data-i="fName"></label>
-            <input id="iName" name="name" type="text" autocomplete="name" dir="auto" maxlength="120">
+            <input id="iName" name="name" type="text" autocomplete="name" dir="auto" maxlength="100" data-ph="phName">
             <p class="err" hidden></p>
           </div>
           <div class="field" id="fEmail">
             <label for="iEmail" data-i="fEmail"></label>
-            <input id="iEmail" name="email" type="email" inputmode="email" autocomplete="email" dir="ltr" maxlength="160">
+            <input id="iEmail" name="email" type="email" inputmode="email" autocomplete="email" dir="ltr" maxlength="100" data-ph="phEmail">
             <p class="err" hidden></p>
           </div>
           <div class="field" id="fPhone">
             <label for="iPhone" data-i="fPhone"></label>
-            <input id="iPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" dir="ltr" maxlength="40">
+            <input id="iPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" dir="ltr" maxlength="40" data-ph="phPhone">
           </div>
           <div class="field" id="fCompany">
             <label for="iCompany"><span data-i="fCompany"></span> <small data-i="optional"></small></label>
-            <input id="iCompany" name="company" type="text" autocomplete="organization" dir="auto" maxlength="120">
+            <input id="iCompany" name="company" type="text" autocomplete="organization" dir="auto" maxlength="100" data-ph="phCompany">
           </div>
           <div class="field" id="fNote">
             <button class="linkish" id="noteBtn" type="button" data-i="addNote"></button>
             <div id="noteWrap" hidden>
               <label for="iNote"><span data-i="fNote"></span> <small data-i="optional"></small></label>
-              <textarea id="iNote" name="note" dir="auto" maxlength="500"></textarea>
+              <textarea id="iNote" name="note" dir="auto" maxlength="500" data-ph="phNote"></textarea>
             </div>
           </div>
           <div class="hp" aria-hidden="true"><label>Leave empty <input id="iHp" name="site" type="text" tabindex="-1" autocomplete="off"></label></div>
@@ -228,12 +228,36 @@ textarea{min-height:88px;resize:vertical}
    cardUrl   Power Automate "Get card" flow URL. When set, links like card.html?c=ID load the card from Dataverse (verified).
    leadUrl   Power Automate "Card page lead" flow URL. Where the visitor form is sent. Empty = the form is hidden (demo still shows it).
    privacyUrl  Link to the privacy notice. Empty = a short default text is shown instead.
-   allowLinkCards  true = links that carry the card inside the link (#z=, #d=) are shown, marked "not verified". Set false once Dataverse cards are live. */
+   allowLinkCards  true = links that carry the card inside the link (#z=, #d=) are shown, marked "not verified". Set false once Dataverse cards are live.
+   quirks    true = playful Great Teacher Onizuka wording and sample card (English only). Set false for plain professional wording. */
 var CONFIG = {
-  cardUrl: '',
-  leadUrl: '',
+  cardUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/26/workflows/3cae8d3bf3a54d079a1bbe95bda554f6/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=1NFydb7KaYRQJZyj9UWp53kJkryIkDRn1I-GErgmOPQ',
+  leadUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/02/workflows/e8d331961b6a473b95457dc9bae5a921/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=WAWi9e5CRoDHybamh8HCfYSqUa6Z3cQh5jKxCt2TCmk',
   privacyUrl: '',
-  allowLinkCards: true
+  allowLinkCards: true,
+  quirks: true
+};
+
+/* ===== Personality: Great Teacher Onizuka mode =====
+   Only used when CONFIG.quirks is true and the page is in English. Delete this block or set quirks to false and the
+   plain wording in the page takes over. Consent and privacy wording is never changed by this block. */
+var QUIRKS = {
+  en: {
+    shareSub: 'So {n} can follow up. Takes 20 seconds. Even a rookie can do it.',
+    send: 'Send it. No regrets.', sending: 'Sending. Hold on, kid\u2026',
+    sentH: 'Sent. Nice work, kid.', sentP: '{n} will be in touch. A great teacher never ghosts.',
+    errName: 'Oi, you forgot your name.', errContact: 'Oi, give me an email or a phone number.',
+    errEmail: 'That email looks half-finished, kid.', errConsent: 'Tick the box first, kid.',
+    trustLink: 'Shared by link, not verified. Be careful, kid.', trustDemo: 'Demo card. Nothing here is real.',
+    missingH: 'No such card.', missingP: 'Wrong link, rookie. Ask for it again.',
+    phName: 'Your name (not \u201cStudent A\u201d)', phEmail: 'you@school.example', phPhone: 'a number that actually works',
+    phCompany: 'your school, gang or company', phNote: 'What do you need from the Great Teacher?'
+  },
+  demo: {
+    f: 'Eikichi', l: 'Onizuka', a: 'إيكيتشي أونيزوكا', t: 'Great Teacher (self-appointed)', o: 'Holy Forest Academy', d: 'Class 3-4, the troubled one',
+    m: '+81 90 0000 0000', p: '+81 3 0000 0000', e: 'onizuka@greatteacher.example', u: 'https://greatteacher.example',
+    i: 'https://www.linkedin.com/in/great-teacher-onizuka', s: 'Somewhere in Tokyo, probably on a motorbike'
+  }
 };
 
 (function () {
@@ -329,8 +353,9 @@ var CONFIG = {
   }
 
   /* ---------- language ---------- */
+  function quirk(key) { return (CONFIG.quirks && state.lang === 'en' && QUIRKS.en && QUIRKS.en[key]) || ''; }
   function t(key, vars) {
-    var str = (T[state.lang] && T[state.lang][key]) || T.en[key] || key;
+    var str = quirk(key) || (T[state.lang] && T[state.lang][key]) || T.en[key] || key;
     vars = vars || {};
     return str.replace(/\{(\w+)\}/g, function (m, k) { return vars[k] != null ? vars[k] : ''; });
   }
@@ -338,6 +363,8 @@ var CONFIG = {
   function applyStatic() {
     var els = document.querySelectorAll('[data-i]');
     for (var i = 0; i < els.length; i++) els[i].textContent = t(els[i].getAttribute('data-i'), nameVars());
+    var phs = document.querySelectorAll('[data-ph]');
+    for (var j = 0; j < phs.length; j++) phs[j].setAttribute('placeholder', quirk(phs[j].getAttribute('data-ph')));
     $('langBtn').textContent = t('other');
     $('foot').textContent = t('foot');
   }
@@ -490,7 +517,7 @@ var CONFIG = {
   }
   function onSubmit(ev) {
     ev.preventDefault();
-    var f = $('form').elements, name = s(f.name.value, 120), email = s(f.email.value, 160), phone = s(f.phone.value, 40), company = s(f.company.value, 120), note = s(f.note.value, 500);
+    var f = $('form').elements, name = s(f.name.value, 100), email = s(f.email.value, 100), phone = s(f.phone.value, 40), company = s(f.company.value, 100), note = s(f.note.value, 500);
     var bad = false, em = '';
     setErr('fName', name ? '' : t('errName')); bad = bad || !name;
     if (!email && !phone) em = t('errContact'); else if (email && !toMail(email)) em = t('errEmail');
@@ -520,7 +547,7 @@ var CONFIG = {
     return new Response(stream).text();
   }
   function fromHash(h) {
-    if (h === 'demo') return Promise.resolve({ card: DEMO, mode: 'demo' });
+    if (h === 'demo') return Promise.resolve({ card: (CONFIG.quirks && QUIRKS.demo) ? QUIRKS.demo : DEMO, mode: 'demo' });
     var m = /^(z|d)=([A-Za-z0-9_-]+)$/.exec(h);
     if (!m || !CONFIG.allowLinkCards) return Promise.resolve(null);
     var p;
