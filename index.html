@@ -154,6 +154,9 @@ input.guess{border-color:var(--accent);background:#fff8e6}
 .qr{display:grid;place-items:center;background:#fff;border-radius:16px;padding:14px;width:max-content;max-width:100%;margin:0 auto}
 .qr img,.qr canvas{display:block}
 .qr-cap{color:var(--ink-2);font-size:14px;margin-top:12px}
+.seg{display:inline-flex;margin-top:14px;border:1px solid var(--line);border-radius:999px;background:var(--bg);padding:3px}
+.seg button{font:inherit;font-size:13px;font-weight:500;border:0;background:transparent;color:var(--ink-2);padding:6px 14px;border-radius:999px;cursor:pointer;min-height:32px}
+.seg button.on{background:var(--card);color:var(--card-ink)}
 
 /* contacts list */
 .list-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
@@ -277,10 +280,16 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
 
       <div class="qr-block" id="qrBlock" hidden>
         <div class="qr" id="myQR"></div>
-        <p class="qr-cap">Point any phone camera here to save my contact.</p>
+        <p class="qr-cap" id="qrCap">Point any phone camera here to save my contact.</p>
+        <div class="seg" id="qrMode" role="group" aria-label="What the QR opens">
+          <button type="button" data-mode="page">Web page</button>
+          <button type="button" data-mode="contact">Saves contact</button>
+        </div>
       </div>
       <div class="row" id="cardActions" hidden>
         <button class="btn btn-secondary" id="editCardBtn" type="button">Edit my card</button>
+        <button class="btn btn-secondary" id="previewPageBtn" type="button">Preview my page</button>
+        <button class="btn btn-secondary" id="copyLinkBtn" type="button">Copy page link</button>
         <button class="btn btn-secondary" id="copyCardBtn" type="button">Copy details</button>
         <button class="btn btn-secondary" id="msRefresh" type="button" hidden>Refresh from Microsoft</button>
       </div>
@@ -568,8 +577,10 @@ function(e){return e.hasOwnProperty("authorization_endpoint")&&e.hasOwnProperty(
    readerUrl     Endpoint that reads card photos (Power Automate flow URL or reader worker URL).
    readerToken   Optional shared secret the endpoint checks.
    readerCareful true only for the Claude worker: shows "Read again carefully" (slower, more accurate model). */
-var APP_VERSION = '1.5';
+var APP_VERSION = '1.7';
 var CHANGELOG = [
+  ['1.7', 'Oct 2, 2026', 'My card can now open a web page (card.html) when someone scans the QR: they save your contact and can leave their details. Choose what the QR opens under it.'],
+  ['1.6', 'Oct 1, 2026', 'The app checks for a newer version when it opens and reloads itself, so phones no longer run old copies.'],
   ['1.5', 'Oct 1, 2026', 'Forms now show which fields are optional. Only name is needed to save a card; first name, last name and a mobile or email for your own card.'],
   ['1.4', 'Oct 1, 2026', 'My card now pulls department, office, office phone, fax, address and photo from Microsoft. Version history added.'],
   ['1.3', 'Oct 1, 2026', 'Sign in with your Microsoft account to fill your card. Company guessed from email when missing. Duplicate check on the phone and in Dataverse.'],
@@ -681,10 +692,47 @@ var CONFIG = {
     $('pNameAr').textContent = profile.ar || ''; $('pNameAr').hidden = !profile.ar;
     $('pTitle').textContent = profile.title || ''; $('pTitle').hidden = !profile.title;
     $('pOrg').textContent = [profile.company, profile.department].filter(Boolean).join(', ') + (profile.office ? ' (' + profile.office + ')' : '');
-    var q = $('myQR'); q.innerHTML = '';
-    if (window.QRCode) new QRCode(q, { text: vcardOf(profile), width: 224, height: 224, colorDark: '#0E3B43', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
-    else q.appendChild(el('p', null, 'QR code unavailable while offline'));
+    drawMyQR();
   }
+  /* ---------- web page link and QR ---------- */
+  var cardLink = '', qrTicket = 0;
+  function b64u(bytes) { var x = ''; for (var i = 0; i < bytes.length; i++) x += String.fromCharCode(bytes[i]); return btoa(x).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+  function buildCardLink(p) {
+    var map = { f: p.first, l: p.last, a: p.ar, t: p.title, o: p.company, d: p.department, m: p.phone, p: p.officePhone, e: p.email, u: p.web,
+                s: [p.street, p.city, p.state, p.postal, p.country].filter(Boolean).join(', ') }, o = {};
+    Object.keys(map).forEach(function (k) { if (map[k]) o[k] = map[k]; });
+    var bytes = new TextEncoder().encode(JSON.stringify(o)), base = new URL('card.html', location.href).href.split('#')[0];
+    if (window.CompressionStream) {
+      var cs = new CompressionStream('deflate-raw');
+      return new Response(new Blob([bytes]).stream().pipeThrough(cs)).arrayBuffer().then(function (buf) { return base + '#z=' + b64u(new Uint8Array(buf)); });
+    }
+    return Promise.resolve(base + '#d=' + b64u(bytes));
+  }
+  function drawMyQR() {
+    var q = $('myQR'), mode = settings.qrMode === 'page' ? 'page' : 'contact', ticket = ++qrTicket;
+    var btns = $('qrMode').querySelectorAll('button');
+    for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('on', btns[i].dataset.mode === mode);
+    buildCardLink(profile).then(function (l) { cardLink = l; }, function () { cardLink = ''; });
+    q.innerHTML = '';
+    if (!window.QRCode) { q.appendChild(el('p', null, 'QR code unavailable while offline')); return; }
+    if (mode === 'contact') {
+      new QRCode(q, { text: vcardOf(profile), width: 224, height: 224, colorDark: '#0E3B43', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+      $('qrCap').textContent = 'Point any phone camera here to save my contact. Works with no signal.';
+      return;
+    }
+    buildCardLink(profile).then(function (l) {
+      if (ticket !== qrTicket) return;
+      cardLink = l; q.innerHTML = '';
+      new QRCode(q, { text: l, width: 280, height: 280, colorDark: '#0E3B43', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.L });
+      $('qrCap').textContent = 'Point any phone camera here to open my card page.';
+    });
+  }
+  $('qrMode').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b || !profile) return;
+    settings.qrMode = b.dataset.mode; store.set(K.settings, settings); drawMyQR();
+  });
+  $('previewPageBtn').addEventListener('click', function () { if (cardLink) window.open(cardLink, '_blank', 'noopener'); else toast('One moment, then tap again.'); });
+  $('copyLinkBtn').addEventListener('click', function () { if (cardLink) copyText(cardLink, 'Page link copied'); else toast('One moment, then tap again.'); });
   function openProfileForm() {
     var body = openSheet(profile ? 'Edit my card' : 'Set up my card');
     body.appendChild($('profileTpl').content.cloneNode(true));
@@ -1657,6 +1705,20 @@ var CONFIG = {
     CHANGELOG.forEach(function (v) { var li = el('li'); li.appendChild(el('b', null, 'v' + v[0] + ', ' + v[1])); li.appendChild(document.createTextNode(v[2])); ul.appendChild(li); });
     body.appendChild(ul);
   });
+
+  /* ---------- self-update: reload when a newer version is online ---------- */
+  function checkForUpdate() {
+    if (!/^https?:/.test(location.href) || !navigator.onLine) return;
+    fetch(location.href.split(/[?#]/)[0], { cache: 'no-store' }).then(function (r) { return r.ok ? r.text() : ''; }).then(function (html) {
+      var m = /var APP_VERSION = '([^']+)'/.exec(html || '');
+      if (!m || m[1] === APP_VERSION) return;
+      if (store.get('alc_reloaded_for', '') === m[1]) return;
+      store.set('alc_reloaded_for', m[1]);
+      toast('Updating to v' + m[1]);
+      setTimeout(function () { location.reload(); }, 900);
+    }).catch(function () {});
+  }
+  setTimeout(checkForUpdate, 2000);
 
   /* ---------- start ---------- */
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {}); } catch (e) {}

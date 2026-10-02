@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E3B43">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src https:; base-uri 'none'; form-action 'none'">
+<title>Digital card</title>
+<style>
+:root{
+  box-sizing:border-box;
+  --bg:#EEF2F0; --paper:#FFFFFF; --card:#0E3B43; --card2:#1A525C; --card-ink:#F2F6F4; --card-muted:#A6C1C1;
+  --ink:#14262B; --ink2:#516569; --line:#D2DBD7;
+  --accent:#C8963E; --accent-hover:#B6852E; --accent-ink:#1B1400;
+  --ok:#2E7D5B; --err:#B2422F; --focus:#2C7FB8;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0A2229; --paper:#10313A; --card:#16454F; --card2:#22596A;
+    --ink:#E6EEEB; --ink2:#9DB2AE; --line:#25505A;
+    --accent:#D2A24C; --accent-hover:#E0B45E;
+    --ok:#5FBE95; --err:#E07A63; --focus:#7CC1EC;
+  }
+}
+*,*::before,*::after{box-sizing:inherit}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,"Helvetica Neue",Arial,"Noto Sans Arabic","Geeza Pro",Tahoma,sans-serif;
+  font-size:16px;line-height:1.5;
+}
+[hidden]{display:none !important}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+h1,h2,p,ul{margin:0}
+ul{padding:0;list-style:none}
+a{color:inherit}
+.page{max-width:460px;margin:0 auto;padding:max(14px,env(safe-area-inset-top)) 16px calc(36px + env(safe-area-inset-bottom))}
+
+.bar{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:4px 2px 14px;min-height:44px}
+.co{font-size:14px;color:var(--ink2);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pill{font-size:12px;font-weight:500;border-radius:999px;padding:3px 10px;border:1px solid var(--line);background:var(--paper);color:var(--ink2)}
+.pill.demo{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.lang{font:inherit;font-size:14px;font-weight:500;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:6px 14px;min-height:36px;cursor:pointer}
+.bar-end{display:flex;gap:8px;align-items:center}
+
+/* the card */
+.card{background:var(--card);color:var(--card-ink);border-radius:22px;padding:22px 22px 24px}
+.avatar{width:76px;height:92px;display:block}
+.avatar text{font-family:inherit;font-weight:600;font-size:28px;fill:var(--accent-ink)}
+.name{font-size:32px;font-weight:650;line-height:1.1;letter-spacing:-.01em;margin:18px 0 6px}
+.alt{font-size:20px;color:var(--card-muted);margin-bottom:10px}
+.role{font-size:17px;line-height:1.35}
+.org{font-size:15px;color:var(--card-muted);margin-top:2px}
+
+.btn{
+  font:inherit;font-weight:600;font-size:16px;line-height:1.3;border:0;border-radius:12px;min-height:50px;padding:12px 18px;
+  cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;
+}
+.btn-primary{background:var(--accent);color:var(--accent-ink)}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-quiet{background:transparent;color:var(--ink);border:1px solid var(--line);font-weight:500}
+.btn:disabled{opacity:.6;cursor:default}
+.card .btn{margin-top:22px}
+.linkish{background:none;border:0;padding:0;font:inherit;font-size:14px;color:var(--ink);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+
+/* quick actions */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:10px;margin-top:12px}
+.tile{
+  display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 8px 10px;text-decoration:none;
+  background:var(--paper);border:1px solid var(--line);border-radius:12px;font-size:14px;font-weight:500;min-height:64px;
+}
+.tile svg,.ico svg{width:22px;height:22px;display:block}
+.tile svg{color:var(--card)}
+@media (prefers-color-scheme:dark){.tile svg{color:var(--accent)}}
+
+/* details */
+.rows{margin-top:14px;border-top:1px solid var(--line)}
+.rows li{border-bottom:1px solid var(--line)}
+.row{display:flex;gap:14px;align-items:center;padding:13px 2px;text-decoration:none;min-height:56px}
+.ico{flex:none;width:28px;display:grid;place-items:center;color:var(--ink2)}
+.rl{min-width:0;display:flex;flex-direction:column}
+.lab{font-size:13px;color:var(--ink2)}
+.val{font-size:16px;overflow-wrap:anywhere}
+
+/* share form */
+.share{margin-top:30px}
+.share h2{font-size:21px;font-weight:600;line-height:1.25}
+.sub{color:var(--ink2);font-size:15px;margin:4px 0 16px;max-width:38ch}
+.field{margin-bottom:14px}
+label{display:block;font-size:14px;font-weight:500;margin-bottom:6px}
+label small{color:var(--ink2);font-weight:400}
+input,textarea{
+  width:100%;font:inherit;font-size:16px;color:var(--ink);padding:12px 14px;min-height:48px;
+  border:1px solid var(--line);border-radius:12px;background:var(--paper);
+}
+textarea{min-height:88px;resize:vertical}
+.field.bad input,.field.bad textarea{border-color:var(--err)}
+.err{color:var(--err);font-size:14px;margin-top:6px}
+.consent{display:flex;gap:12px;align-items:flex-start;margin:6px 0 18px;font-size:14px;color:var(--ink2);font-weight:400}
+.consent input{width:22px;height:22px;min-height:22px;margin:1px 0 0;flex:none;accent-color:var(--card)}
+.hp{position:absolute;inset-inline-start:-9999px;width:1px;height:1px;overflow:hidden}
+.how{margin-top:14px;font-size:13px;color:var(--ink2)}
+.how summary{cursor:pointer}
+.how p{margin-top:6px}
+.thanks{border:1px solid var(--line);background:var(--paper);border-radius:16px;padding:20px}
+.thanks-head{display:flex;gap:10px;align-items:center;font-size:18px;font-weight:600}
+.thanks-head svg{width:24px;height:24px;color:var(--ok);flex:none}
+.thanks p{margin:6px 0 16px;color:var(--ink2)}
+
+.trust{margin-top:26px;display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink2)}
+.trust svg{width:16px;height:16px;flex:none}
+.trust.ok{color:var(--ok)}
+.foot{margin-top:18px;font-size:12px;color:var(--ink2);text-align:center}
+
+/* states */
+.skel{min-height:300px}
+.skel i{display:block;height:16px;border-radius:8px;background:var(--card2);margin-top:14px;animation:pulse 1.4s ease-in-out infinite}
+.skel i:nth-child(1){width:76px;height:92px;border-radius:38px 38px 0 0;margin-top:0}
+.skel i:nth-child(2){width:64%;height:30px;margin-top:22px}
+.skel i:nth-child(3){width:40%}
+@keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}
+.missing{text-align:start;padding:8px 2px}
+.missing h1{font-size:24px;font-weight:600;margin-bottom:6px}
+.missing p{color:var(--ink2)}
+
+.toast{
+  position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));transform:translateX(-50%);
+  background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;font-weight:500;
+  opacity:0;pointer-events:none;transition:opacity .2s;max-width:90%;text-align:center;z-index:5;
+}
+.toast.show{opacity:1}
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="bar">
+    <span class="co" id="co"></span>
+    <span class="bar-end">
+      <span class="pill" id="pill" hidden></span>
+      <button class="lang" id="langBtn" type="button">العربية</button>
+    </span>
+  </header>
+
+  <main>
+    <section class="card skel" id="loading" aria-label="Loading"><i></i><i></i><i></i></section>
+
+    <section class="missing" id="missing" hidden>
+      <h1 data-i="missingH"></h1>
+      <p data-i="missingP"></p>
+    </section>
+
+    <div id="view" hidden>
+      <article class="card" id="card">
+        <svg class="avatar" id="avatar" viewBox="0 0 76 92" aria-hidden="true">
+          <defs><clipPath id="arch"><path d="M38 0 C52 8 76 26 76 50 L76 92 L0 92 L0 50 C0 26 24 8 38 0 Z"/></clipPath></defs>
+          <path d="M38 0 C52 8 76 26 76 50 L76 92 L0 92 L0 50 C0 26 24 8 38 0 Z" fill="var(--accent)"/>
+          <text id="initials" x="38" y="54" text-anchor="middle" dominant-baseline="central"></text>
+        </svg>
+        <h1 class="name" id="name"></h1>
+        <p class="alt" id="alt" lang="ar" hidden></p>
+        <p class="role" id="role"></p>
+        <p class="org" id="org"></p>
+        <button class="btn btn-primary" id="saveBtn" type="button" data-i="save"></button>
+      </article>
+
+      <nav class="tiles" id="tiles" aria-label="Contact options"></nav>
+      <ul class="rows" id="rows"></ul>
+
+      <section class="share" id="share">
+        <h2 id="shareH"></h2>
+        <p class="sub" id="shareSub"></p>
+        <form id="form" novalidate autocomplete="on">
+          <div class="field" id="fName">
+            <label for="iName" data-i="fName"></label>
+            <input id="iName" name="name" type="text" autocomplete="name" dir="auto" maxlength="120">
+            <p class="err" hidden></p>
+          </div>
+          <div class="field" id="fEmail">
+            <label for="iEmail" data-i="fEmail"></label>
+            <input id="iEmail" name="email" type="email" inputmode="email" autocomplete="email" dir="ltr" maxlength="160">
+            <p class="err" hidden></p>
+          </div>
+          <div class="field" id="fPhone">
+            <label for="iPhone" data-i="fPhone"></label>
+            <input id="iPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" dir="ltr" maxlength="40">
+          </div>
+          <div class="field" id="fCompany">
+            <label for="iCompany"><span data-i="fCompany"></span> <small data-i="optional"></small></label>
+            <input id="iCompany" name="company" type="text" autocomplete="organization" dir="auto" maxlength="120">
+          </div>
+          <div class="field" id="fNote">
+            <button class="linkish" id="noteBtn" type="button" data-i="addNote"></button>
+            <div id="noteWrap" hidden>
+              <label for="iNote"><span data-i="fNote"></span> <small data-i="optional"></small></label>
+              <textarea id="iNote" name="note" dir="auto" maxlength="500"></textarea>
+            </div>
+          </div>
+          <div class="hp" aria-hidden="true"><label>Leave empty <input id="iHp" name="site" type="text" tabindex="-1" autocomplete="off"></label></div>
+          <div class="field" id="fConsent">
+            <label class="consent"><input id="iConsent" name="consent" type="checkbox"><span id="consentText"></span></label>
+            <p class="err" hidden></p>
+          </div>
+          <button class="btn btn-primary" id="sendBtn" type="submit" data-i="send"></button>
+          <details class="how">
+            <summary data-i="howH"></summary>
+            <p id="howP"></p>
+          </details>
+        </form>
+        <div class="thanks" id="thanks" hidden>
+          <div class="thanks-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span id="thanksH"></span></div>
+          <p id="thanksP"></p>
+          <button class="btn btn-primary" id="saveBtn2" type="button"></button>
+        </div>
+      </section>
+
+      <p class="trust" id="trust"></p>
+    </div>
+  </main>
+  <p class="foot"><span id="foot"></span></p>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ===== Settings (edit before publishing) =====
+   cardUrl   Power Automate "Get card" flow URL. When set, links like card.html?c=ID load the card from Dataverse (verified).
+   leadUrl   Power Automate "Card page lead" flow URL. Where the visitor form is sent. Empty = the form is hidden (demo still shows it).
+   privacyUrl  Link to the privacy notice. Empty = a short default text is shown instead.
+   allowLinkCards  true = links that carry the card inside the link (#z=, #d=) are shown, marked "not verified". Set false once Dataverse cards are live. */
+var CONFIG = {
+  cardUrl: '',
+  leadUrl: '',
+  privacyUrl: '',
+  allowLinkCards: true
+};
+
+(function () {
+  'use strict';
+  function $(id) { return document.getElementById(id); }
+
+  var T = {
+    en: {
+      save: 'Save contact', saveName: 'Save {n}\u2019s contact', call: 'Call', email: 'Email', wa: 'WhatsApp',
+      mobile: 'Mobile', office: 'Office', mail: 'Email', web: 'Website', li: 'LinkedIn', addr: 'Address',
+      shareH: 'Share your details with {n}', shareSub: 'So {n} can follow up. Takes 20 seconds.',
+      fName: 'Your name', fEmail: 'Email', fPhone: 'Phone', fCompany: 'Company', fNote: 'Note', addNote: 'Add a note', optional: '(optional)',
+      consent: 'I agree that {n} may contact me about this meeting.',
+      howH: 'How your details are used', howP: '{n} and the company keep these details to follow up with you. You can ask for them to be deleted at any time{mail}.',
+      privacy: 'Privacy notice',
+      send: 'Send my details', sending: 'Sending\u2026',
+      sentH: 'Sent. Thank you.', sentP: '{n} will be in touch.', demoSent: 'Demo: nothing was sent.',
+      errName: 'Please add your name.', errContact: 'Add an email or a phone number.', errEmail: 'That email doesn\u2019t look complete.',
+      errConsent: 'Please tick the box to continue.', errSend: 'Couldn\u2019t send. Check your connection and try again.',
+      trustVerified: 'Verified staff card', trustLink: 'Shared by link, not verified', trustDemo: 'Demo card',
+      missingH: 'Card not found', missingP: 'This link may be old or mistyped. Ask the person to share it again.',
+      copyDetails: 'Copy details', copied: 'Copied', saveHelp: 'Contact didn\u2019t open?', foot: 'Digital card', other: 'العربية'
+    },
+    ar: {
+      save: 'حفظ جهة الاتصال', saveName: 'حفظ جهة اتصال {n}', call: 'اتصال', email: 'بريد', wa: 'واتساب',
+      mobile: 'الجوال', office: 'المكتب', mail: 'البريد الإلكتروني', web: 'الموقع', li: 'لينكدإن', addr: 'العنوان',
+      shareH: 'شارك بياناتك مع {n}', shareSub: 'ليتمكن {n} من التواصل معك. تستغرق 20 ثانية.',
+      fName: 'اسمك', fEmail: 'البريد الإلكتروني', fPhone: 'الهاتف', fCompany: 'الشركة', fNote: 'ملاحظة', addNote: 'إضافة ملاحظة', optional: '(اختياري)',
+      consent: 'أوافق على أن يتواصل معي {n} بشأن هذا اللقاء.',
+      howH: 'كيف نستخدم بياناتك', howP: 'يحتفظ {n} والشركة بهذه البيانات للتواصل معك. يمكنك طلب حذفها في أي وقت{mail}.',
+      privacy: 'إشعار الخصوصية',
+      send: 'إرسال بياناتي', sending: 'جارٍ الإرسال…',
+      sentH: 'تم الإرسال. شكرًا لك.', sentP: 'سيتواصل معك {n} قريبًا.', demoSent: 'تجريبي: لم يتم إرسال أي شيء.',
+      errName: 'يرجى إدخال اسمك.', errContact: 'أضف بريدًا إلكترونيًا أو رقم هاتف.', errEmail: 'البريد الإلكتروني غير مكتمل.',
+      errConsent: 'يرجى تحديد المربع للمتابعة.', errSend: 'تعذر الإرسال. تحقق من الاتصال وحاول مرة أخرى.',
+      trustVerified: 'بطاقة موظف موثّقة', trustLink: 'بطاقة مشاركة عبر رابط، غير موثّقة', trustDemo: 'بطاقة تجريبية',
+      missingH: 'لم يتم العثور على البطاقة', missingP: 'قد يكون الرابط قديمًا أو غير صحيح. اطلب من صاحب البطاقة مشاركته مجددًا.',
+      copyDetails: 'نسخ البيانات', copied: 'تم النسخ', saveHelp: 'لم تُفتح جهة الاتصال؟', foot: 'بطاقة رقمية', other: 'English'
+    }
+  };
+
+  var ICONS = {
+    phone: '<path d="M5 3h4l2 5-2.5 1.5a11 11 0 0 0 6 6L16 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 5a2 2 0 0 1 2-2z"/>',
+    mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+    globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+    pin: '<path d="M12 21s7-6.2 7-11a7 7 0 0 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>',
+    linkedin: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 10v7M8 7v.01M12 17v-4a2 2 0 0 1 4 0v4M12 10v7"/>',
+    chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z"/>',
+    office: '<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2"/>',
+    shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/>'
+  };
+  function svg(name) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[name] + '</svg>';
+  }
+
+  var DEMO = {
+    f: 'Layla', l: 'Haddad', a: 'ليلى حداد', t: 'Head of Partnerships', o: 'Example Trading LLC', d: 'Partnerships',
+    m: '+971 50 123 4567', p: '+971 4 333 4444', e: 'layla.haddad@example.com', u: 'https://example.com',
+    i: 'https://www.linkedin.com/in/example', s: 'Office 3, Marina Plaza, Dubai, United Arab Emirates'
+  };
+
+  var state = { card: null, mode: '', lang: 'en', loadedAt: Date.now(), cardId: '' };
+  var IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  /* ---------- cleaning: every value from a link or server is untrusted ---------- */
+  function s(v, max) { return String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max || 200); }
+  function pick(o, keys) { for (var i = 0; i < keys.length; i++) { var v = o[keys[i]]; if (v != null && String(v).trim()) return v; } return ''; }
+  function toUrl(v) {
+    v = s(v, 300); if (!v) return '';
+    if (!/^https?:\/\//i.test(v)) { if (/^[a-z][a-z0-9+.-]*:/i.test(v)) return ''; v = 'https://' + v.replace(/^\/+/, ''); }
+    try { var u = new URL(v); return /^https?:$/.test(u.protocol) && u.hostname.indexOf('.') > 0 ? u.href : ''; } catch (e) { return ''; }
+  }
+  function digits(v) { return String(v || '').replace(/[^\d+]/g, '').replace(/(?!^)\+/g, ''); }
+  function toMail(v) { v = s(v, 160); return /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test(v) ? v : ''; }
+  function cleanCard(r) {
+    r = r || {};
+    var web = toUrl(pick(r, ['u', 'web', 'website', 'url'])), li = toUrl(pick(r, ['i', 'linkedin']));
+    if (web && /(^|\.)linkedin\.com$/i.test(new URL(web).hostname) && !li) { li = web; web = ''; }
+    var photo = String(r.photo || ''); if (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(photo) || photo.length > 80000) photo = '';
+    var mobile = s(pick(r, ['m', 'mobile', 'phone']), 40), office = s(pick(r, ['p', 'office', 'officePhone']), 40);
+    return {
+      first: s(pick(r, ['f', 'first', 'firstName']), 60), last: s(pick(r, ['l', 'last', 'lastName']), 60), ar: s(pick(r, ['a', 'ar', 'nameAr']), 80),
+      title: s(pick(r, ['t', 'title', 'jobTitle']), 100), company: s(pick(r, ['o', 'company', 'companyName']), 100), dept: s(pick(r, ['d', 'dept', 'department']), 80),
+      mobile: /\d/.test(mobile) ? mobile : '', office: /\d/.test(office) ? office : '',
+      email: toMail(pick(r, ['e', 'email'])), web: web, linkedin: li, address: s(pick(r, ['s', 'address']), 200), photo: photo
+    };
+  }
+  function fullName(c) { return [c.first, c.last].filter(Boolean).join(' ') || c.ar; }
+  function initials(c) {
+    var a = (c.first.charAt(0) + c.last.charAt(0)) || (c.ar.split(' ').map(function (w) { return w.charAt(0); }).slice(0, 2).join(''));
+    return a.toUpperCase();
+  }
+
+  /* ---------- language ---------- */
+  function t(key, vars) {
+    var str = (T[state.lang] && T[state.lang][key]) || T.en[key] || key;
+    vars = vars || {};
+    return str.replace(/\{(\w+)\}/g, function (m, k) { return vars[k] != null ? vars[k] : ''; });
+  }
+  function nameVars() { var c = state.card || {}; return { n: c.first || fullName(c) || '', mail: c.email ? ' (' + c.email + ')' : '' }; }
+  function applyStatic() {
+    var els = document.querySelectorAll('[data-i]');
+    for (var i = 0; i < els.length; i++) els[i].textContent = t(els[i].getAttribute('data-i'), nameVars());
+    $('langBtn').textContent = t('other');
+    $('foot').textContent = t('foot');
+  }
+  function setLang(l, remember) {
+    state.lang = l === 'ar' ? 'ar' : 'en';
+    document.documentElement.lang = state.lang;
+    document.documentElement.dir = state.lang === 'ar' ? 'rtl' : 'ltr';
+    if (remember) { try { localStorage.setItem('gcs_card_lang', state.lang); } catch (e) {} }
+    applyStatic();
+    if (state.card) renderCard();
+  }
+
+  /* ---------- rendering ---------- */
+  function rowEl(ic, label, value, href, ltr) {
+    var li = document.createElement('li'), a = document.createElement(href ? 'a' : 'div');
+    a.className = 'row';
+    if (href) { a.href = href; if (/^https?:/.test(href)) { a.target = '_blank'; a.rel = 'noopener noreferrer'; } }
+    var i = document.createElement('span'); i.className = 'ico'; i.innerHTML = svg(ic);
+    var b = document.createElement('span'); b.className = 'rl';
+    var l = document.createElement('span'); l.className = 'lab'; l.textContent = label;
+    var v = document.createElement('span'); v.className = 'val';
+    if (ltr) { var bdi = document.createElement('bdi'); bdi.setAttribute('dir', 'ltr'); bdi.textContent = value; v.appendChild(bdi); } else v.textContent = value;
+    b.appendChild(l); b.appendChild(v); a.appendChild(i); a.appendChild(b); li.appendChild(a);
+    return li;
+  }
+  function tileEl(ic, label, href, newTab) {
+    var a = document.createElement('a'); a.className = 'tile'; a.href = href;
+    if (newTab) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+    var i = document.createElement('span'); i.innerHTML = svg(ic);
+    var l = document.createElement('span'); l.textContent = label;
+    a.appendChild(i); a.appendChild(l); return a;
+  }
+  function renderCard() {
+    var c = state.card, name = fullName(c);
+    $('co').textContent = c.company;
+    $('name').textContent = name;
+    var alt = $('alt'); alt.textContent = c.ar && c.ar !== name ? c.ar : ''; alt.hidden = !alt.textContent;
+    $('role').textContent = c.title; $('role').hidden = !c.title;
+    $('org').textContent = [c.company, c.dept].filter(Boolean).join(', '); $('org').hidden = !$('org').textContent;
+    var av = $('avatar'), old = av.querySelector('image'); if (old) old.remove();
+    $('initials').textContent = c.photo ? '' : initials(c);
+    if (c.photo) {
+      var im = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+      im.setAttribute('href', c.photo); im.setAttribute('width', '76'); im.setAttribute('height', '92');
+      im.setAttribute('preserveAspectRatio', 'xMidYMid slice'); im.setAttribute('clip-path', 'url(#arch)'); av.appendChild(im);
+    }
+    var tiles = $('tiles'); tiles.innerHTML = '';
+    var dial = digits(c.mobile || c.office);
+    if (dial) tiles.appendChild(tileEl('phone', t('call'), 'tel:' + dial));
+    if (c.email) tiles.appendChild(tileEl('mail', t('email'), 'mailto:' + c.email));
+    var wa = digits(c.mobile).replace('+', '');
+    if (wa.length >= 8) tiles.appendChild(tileEl('chat', t('wa'), 'https://wa.me/' + wa, true));
+    tiles.hidden = !tiles.children.length;
+
+    var rows = $('rows'); rows.innerHTML = '';
+    if (c.mobile) rows.appendChild(rowEl('phone', t('mobile'), c.mobile, 'tel:' + digits(c.mobile), true));
+    if (c.office) rows.appendChild(rowEl('office', t('office'), c.office, 'tel:' + digits(c.office), true));
+    if (c.email) rows.appendChild(rowEl('mail', t('mail'), c.email, 'mailto:' + c.email, true));
+    if (c.web) rows.appendChild(rowEl('globe', t('web'), c.web.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''), c.web, true));
+    if (c.linkedin) rows.appendChild(rowEl('linkedin', t('li'), c.linkedin.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''), c.linkedin, true));
+    if (c.address) {
+      var maps = (IOS ? 'https://maps.apple.com/?q=' : 'https://www.google.com/maps/search/?api=1&query=') + encodeURIComponent(c.address);
+      rows.appendChild(rowEl('pin', t('addr'), c.address, maps, false));
+    }
+    rows.hidden = !rows.children.length;
+
+    var canShare = state.mode === 'demo' || !!CONFIG.leadUrl;
+    $('share').hidden = !canShare;
+    $('shareH').textContent = t('shareH', nameVars());
+    $('shareSub').textContent = t('shareSub', nameVars());
+    $('consentText').textContent = t('consent', nameVars());
+    $('howP').textContent = t('howP', nameVars());
+    $('saveBtn2').textContent = t('saveName', nameVars());
+    $('thanksH').textContent = t('sentH'); $('thanksP').textContent = t('sentP', nameVars());
+    var how = document.querySelector('.how');
+    if (CONFIG.privacyUrl && !how.querySelector('a')) {
+      var pa = document.createElement('a'); pa.href = CONFIG.privacyUrl; pa.target = '_blank'; pa.rel = 'noopener noreferrer'; pa.textContent = t('privacy');
+      how.appendChild(pa);
+    }
+    var tr = $('trust'); tr.className = 'trust';
+    var key = state.mode === 'server' ? 'trustVerified' : state.mode === 'demo' ? 'trustDemo' : 'trustLink';
+    tr.innerHTML = svg(state.mode === 'server' ? 'shield' : 'info');
+    var sp = document.createElement('span'); sp.textContent = t(key); tr.appendChild(sp);
+    if (state.mode === 'server') tr.classList.add('ok');
+    var pill = $('pill'); pill.hidden = state.mode !== 'demo'; pill.textContent = 'Demo'; pill.className = 'pill demo';
+    document.title = [name, c.company].filter(Boolean).join(', ') || 'Digital card';
+  }
+  function showCard(card, mode) {
+    state.card = cleanCard(card); state.mode = mode;
+    $('loading').hidden = true; $('missing').hidden = true; $('view').hidden = false;
+    applyStatic(); renderCard();
+  }
+  function showMissing() {
+    $('loading').hidden = true; $('view').hidden = true; $('missing').hidden = false; applyStatic();
+  }
+
+  /* ---------- vCard and save ---------- */
+  function esc(v) { return String(v || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;'); }
+  function vcard(c) {
+    var L = ['BEGIN:VCARD', 'VERSION:3.0', 'N:' + esc(c.last) + ';' + esc(c.first) + ';;;', 'FN:' + esc(fullName(c))];
+    if (c.ar && c.ar !== fullName(c)) L.push('NICKNAME:' + esc(c.ar));
+    if (c.company || c.dept) L.push('ORG:' + esc(c.company) + (c.dept ? ';' + esc(c.dept) : ''));
+    if (c.title) L.push('TITLE:' + esc(c.title));
+    if (c.mobile) L.push('TEL;TYPE=CELL:' + digits(c.mobile));
+    if (c.office) L.push('TEL;TYPE=WORK,VOICE:' + digits(c.office));
+    if (c.email) L.push('EMAIL;TYPE=INTERNET,WORK:' + c.email);
+    if (c.web) L.push('URL:' + c.web);
+    if (c.linkedin) L.push('X-SOCIALPROFILE;TYPE=linkedin:' + c.linkedin);
+    if (c.address) L.push('ADR;TYPE=WORK:;;' + esc(c.address) + ';;;;');
+    L.push('NOTE:Saved from a digital card', 'END:VCARD');
+    return L.join('\r\n');
+  }
+  function fileName(c) { var n = (fullName(c) || 'contact').replace(/[^\w\u0600-\u06FF -]+/g, '').trim().replace(/\s+/g, '-'); return (n || 'contact') + '.vcf'; }
+  function toast(msg) { var el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(function () { el.classList.remove('show'); }, 2600); }
+  function copyDetails() {
+    var c = state.card, txt = [fullName(c), c.title, c.company, c.mobile, c.office, c.email, c.web, c.address].filter(Boolean).join('\n');
+    function ok() { toast(t('copied')); }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok, fallback); else fallback();
+    function fallback() { var ta = document.createElement('textarea'); ta.value = txt; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); ok(); } catch (e) {} ta.remove(); }
+  }
+  function saveContact() {
+    var c = state.card, fname = fileName(c), blob = new Blob([vcard(c)], { type: 'text/vcard;charset=utf-8' }), file = null;
+    try { file = new File([blob], fname, { type: 'text/vcard' }); } catch (e) {}
+    function viaLink() {
+      var url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = fname; document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 4000);
+    }
+    if (IOS && file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: fullName(c) }).catch(function (e) { if (!e || e.name !== 'AbortError') viaLink(); });
+    } else viaLink();
+    showCopyHint();
+  }
+  function showCopyHint() {
+    if ($('copyHint')) return;
+    var p = document.createElement('p'); p.id = 'copyHint'; p.className = 'sub'; p.style.margin = '10px 2px 0';
+    p.appendChild(document.createTextNode(t('saveHelp') + ' '));
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'linkish'; b.textContent = t('copyDetails'); b.addEventListener('click', copyDetails);
+    p.appendChild(b); $('card').insertAdjacentElement('afterend', p);
+  }
+
+  /* ---------- visitor form ---------- */
+  function setErr(id, msg) {
+    var f = $(id), p = f.querySelector('.err'); f.classList.toggle('bad', !!msg);
+    if (p) { p.textContent = msg || ''; p.hidden = !msg; }
+  }
+  function showThanks(demo) {
+    $('form').hidden = true; $('thanks').hidden = false;
+    if (demo) toast(t('demoSent'));
+    $('thanks').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  function onSubmit(ev) {
+    ev.preventDefault();
+    var f = $('form').elements, name = s(f.name.value, 120), email = s(f.email.value, 160), phone = s(f.phone.value, 40), company = s(f.company.value, 120), note = s(f.note.value, 500);
+    var bad = false, em = '';
+    setErr('fName', name ? '' : t('errName')); bad = bad || !name;
+    if (!email && !phone) em = t('errContact'); else if (email && !toMail(email)) em = t('errEmail');
+    setErr('fEmail', em); bad = bad || !!em;
+    setErr('fConsent', f.consent.checked ? '' : t('errConsent')); bad = bad || !f.consent.checked;
+    if (bad) return;
+    var botLike = !!f.site.value || (Date.now() - state.loadedAt) < 2500;
+    if (botLike) { showThanks(false); return; }
+    if (state.mode === 'demo' || !CONFIG.leadUrl) { showThanks(true); return; }
+    var btn = $('sendBtn'); btn.disabled = true; btn.textContent = t('sending');
+    var payload = {
+      v: 3, kind: 'lead', cardId: state.cardId, owner: state.card.email, ownerName: fullName(state.card),
+      name: name, email: email, phone: phone, company: company, note: note,
+      consent: 'Yes', consentText: t('consent', nameVars()), lang: state.lang, ts: new Date().toISOString(), mode: state.mode
+    };
+    var ctl = new AbortController(), timer = setTimeout(function () { ctl.abort(); }, 15000);
+    fetch(CONFIG.leadUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload), signal: ctl.signal })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); showThanks(false); })
+      .catch(function () { setErr('fConsent', t('errSend')); })
+      .then(function () { clearTimeout(timer); btn.disabled = false; btn.textContent = t('send'); });
+  }
+
+  /* ---------- load the card from the link ---------- */
+  function b64uToBytes(x) { x = x.replace(/-/g, '+').replace(/_/g, '/'); while (x.length % 4) x += '='; var bin = atob(x), a = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return a; }
+  function inflateRaw(bytes) {
+    var stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Response(stream).text();
+  }
+  function fromHash(h) {
+    if (h === 'demo') return Promise.resolve({ card: DEMO, mode: 'demo' });
+    var m = /^(z|d)=([A-Za-z0-9_-]+)$/.exec(h);
+    if (!m || !CONFIG.allowLinkCards) return Promise.resolve(null);
+    var p;
+    if (m[1] === 'z') p = window.DecompressionStream ? inflateRaw(b64uToBytes(m[2])) : Promise.resolve(null);
+    else p = Promise.resolve(new TextDecoder().decode(b64uToBytes(m[2])));
+    return p.then(function (json) { return json ? { card: JSON.parse(json), mode: 'link' } : null; });
+  }
+  function fromServer(id) {
+    var ctl = new AbortController(), timer = setTimeout(function () { ctl.abort(); }, 12000);
+    return fetch(CONFIG.cardUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ id: id }), signal: ctl.signal })
+      .then(function (r) { clearTimeout(timer); return r.ok ? r.json() : null; })
+      .then(function (j) { var c = j && (j.card || j); return c && (c.name || c.first || c.f) ? { card: c, mode: 'server' } : null; });
+  }
+  function start() {
+    var q = new URLSearchParams(location.search), id = q.get('c') || '';
+    var want = (q.get('lang') || '').toLowerCase(), saved = '';
+    try { saved = localStorage.getItem('gcs_card_lang') || ''; } catch (e) {}
+    var pref = want || saved || ((navigator.language || '').toLowerCase().indexOf('ar') === 0 ? 'ar' : 'en');
+    setLang(pref, false);
+    var job;
+    if (id && /^[A-Za-z0-9_-]{6,40}$/.test(id) && CONFIG.cardUrl) { state.cardId = id; job = fromServer(id); }
+    else job = fromHash(location.hash.replace(/^#/, ''));
+    job.then(function (r) { if (r) showCard(r.card, r.mode); else showMissing(); }, showMissing);
+  }
+
+  $('langBtn').addEventListener('click', function () { setLang(state.lang === 'en' ? 'ar' : 'en', true); });
+  $('saveBtn').addEventListener('click', saveContact);
+  $('saveBtn2').addEventListener('click', saveContact);
+  $('noteBtn').addEventListener('click', function () { this.hidden = true; $('noteWrap').hidden = false; $('iNote').focus(); });
+  $('form').addEventListener('submit', onSubmit);
+  /* scanning a second QR in the same tab only changes the part after #, so reload to show the new card */
+  window.addEventListener('hashchange', function () { location.reload(); });
+  start();
+})();
+</script>
+</body>
+</html>
