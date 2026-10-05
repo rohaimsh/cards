@@ -622,8 +622,9 @@ function(e){return e.hasOwnProperty("authorization_endpoint")&&e.hasOwnProperty(
    readerUrl     Endpoint that reads card photos (Power Automate flow URL or reader worker URL).
    readerToken   Optional shared secret the endpoint checks.
    readerCareful true only for the Claude worker: shows "Read again carefully" (slower, more accurate model). */
-var APP_VERSION = '2.6';
+var APP_VERSION = '2.7';
 var CHANGELOG = [
+  ['2.7', 'Oct 5, 2026', 'Card page: visitor details go to the new GCS Get card flow (the old lead flow is retired). The card page now shows its version in the footer.'],
   ['2.6', 'Oct 5, 2026', 'Switched to the secured card reader and Dataverse saving flows (sign-in checked). The card page saves contacts through a real .vcf link on phones.'],
   ['2.5', 'Oct 5, 2026', 'Staff-only: the app asks for the Microsoft work sign-in first. Admin tab for people on the admin list (cards, leads, captures; unpublish and delete). Remove my card and my leads from Dataverse.'],
   ['2.4', 'Oct 5, 2026', 'Add a contact to your own Outlook contacts from its detail view. Email signature with your QR, copied for Outlook. NFC tag instructions.'],

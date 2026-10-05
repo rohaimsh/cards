@@ -230,6 +230,7 @@ textarea{min-height:88px;resize:vertical}
    privacyUrl  Link to the privacy notice. Empty = a short default text is shown instead.
    allowLinkCards  true = links that carry the card inside the link (#z=, #d=) are shown, marked "not verified". Set false once Dataverse cards are live.
    quirks    true = playful Great Teacher Onizuka wording and sample card (English only). Set false for plain professional wording. */
+var PAGE_VERSION = '2.7';
 var CONFIG = {
   cardUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/26/workflows/3cae8d3bf3a54d079a1bbe95bda554f6/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=1NFydb7KaYRQJZyj9UWp53kJkryIkDRn1I-GErgmOPQ',
   vcardUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/00/workflows/a58f4d59c3b448fab87803caf8179efe/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=5klYhy4Rf5XEa8N8CRIBc0jEjrgWvzryj5kP5UGJ9z4',    /* Power Automate "GCS vCard" flow (GET). Phones open this as a real .vcf and add the contact. */
@@ -367,7 +368,7 @@ var QUIRKS = {
     var phs = document.querySelectorAll('[data-ph]');
     for (var j = 0; j < phs.length; j++) phs[j].setAttribute('placeholder', quirk(phs[j].getAttribute('data-ph')));
     $('langBtn').textContent = t('other');
-    $('foot').textContent = t('foot');
+    $('foot').textContent = t('foot') + ' \u00b7 v' + PAGE_VERSION;
   }
   function setLang(l, remember) {
     state.lang = l === 'ar' ? 'ar' : 'en';
