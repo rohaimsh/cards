@@ -176,6 +176,17 @@ input.guess{border-color:var(--accent);background:#fff8e6}
 .csub{color:var(--ink-2);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cwhen{color:var(--ink-2);font-size:12px;flex:none;text-align:right}
 .csub.ok{color:var(--ok)} .csub.warn{color:var(--err)}
+.h3{font-size:15px;font-weight:600;margin:18px 0 6px}
+.tabbar .tab.admin{display:none}
+.tabbar.has-admin .tab.admin{display:flex}
+body.locked .tabbar{display:none}
+.leads{margin:0 0 18px;padding:14px 14px 10px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface)}
+.leads .clist li{padding:10px 0;border-top:1px solid var(--line)}
+.leads .clist li:first-child{border-top:0}
+.lead-actions{display:flex;gap:8px;margin-top:8px}
+.lead-actions .btn{min-height:38px;padding:6px 12px;font-size:14px}
+.badge{display:inline-block;font-size:11px;font-weight:500;border-radius:999px;padding:2px 8px;margin-inline-start:6px;vertical-align:1px;background:var(--bg);color:var(--ink-2);border:1px solid var(--line)}
+.badge.ok{color:var(--ok);border-color:var(--ok)}
 .empty{border:1px dashed var(--line);border-radius:var(--radius-card);padding:24px 18px;text-align:center;color:var(--ink-2);margin-top:14px}
 .empty .btn{margin-top:12px}
 
@@ -290,7 +301,11 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
         <button class="btn btn-secondary" id="editCardBtn" type="button">Edit my card</button>
         <button class="btn btn-primary" id="publishBtn" type="button" hidden>Publish my card</button>
         <button class="btn btn-secondary" id="previewPageBtn" type="button">Preview my page</button>
+        <button class="btn btn-secondary" id="shareLinkBtn" type="button" hidden>Share my page</button>
         <button class="btn btn-secondary" id="copyLinkBtn" type="button">Copy page link</button>
+        <button class="btn btn-secondary" id="qrDownloadBtn" type="button">Download QR image</button>
+        <button class="btn btn-secondary" id="sigBtn" type="button">Email signature</button>
+        <button class="btn btn-secondary" id="nfcBtn" type="button">NFC tag</button>
         <button class="btn btn-secondary" id="copyCardBtn" type="button">Copy details</button>
         <button class="btn btn-secondary" id="msRefresh" type="button" hidden>Refresh from Microsoft</button>
       </div>
@@ -387,6 +402,12 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
 
     <!-- CONTACTS -->
     <section class="panel" id="panel-contacts" hidden>
+      <section class="section leads" id="leadsBox" hidden>
+        <div class="list-head"><h2>Leads from my card page</h2><span class="count" id="leadCount"></span></div>
+        <p class="sub" id="leadsSub">People who filled in the form on your card page. Check them before they become contacts.</p>
+        <ul class="clist" id="leadList"></ul>
+        <div class="row"><button class="btn btn-secondary" id="leadRefresh" type="button">Check for new leads</button></div>
+      </section>
       <div class="list-head"><h2>Contacts</h2><span class="count" id="cCount"></span></div>
       <input class="search" id="search" type="search" placeholder="Search name, company, event" autocomplete="off">
       <ul class="clist" id="clist"></ul>
@@ -412,10 +433,29 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
         <p class="hint" style="margin-top:14px"><button class="link-btn" id="readerSettings" type="button">Card reader settings</button></p>
       </section>
     </section>
+    <section class="panel" id="panel-admin" hidden>
+      <div class="list-head"><h2>Admin</h2><span class="count" id="adminCount"></span></div>
+      <p class="sub">Everyone's published cards, the leads waiting for review, and recent captures. Only people on the admin list see this.</p>
+      <div class="row"><button class="btn btn-secondary" id="adminRefresh" type="button">Refresh</button></div>
+      <h3 class="h3">Published cards</h3>
+      <ul class="clist" id="adminCards"></ul>
+      <h3 class="h3">Leads waiting</h3>
+      <ul class="clist" id="adminLeads"></ul>
+      <h3 class="h3">Recent captures</h3>
+      <ul class="clist" id="adminContacts"></ul>
+    </section>
+    <section class="panel" id="panel-lock" hidden>
+      <section class="section" style="text-align:center;padding:40px 20px">
+        <h1 style="margin:0 0 8px">Sign in to continue</h1>
+        <p class="sub" style="margin:0 auto 20px">GCS is for staff only. Sign in with your work account once; the app remembers you on this phone.</p>
+        <button class="btn btn-primary btn-block" id="lockSignIn" type="button">Sign in with Microsoft</button>
+        <p class="hint" id="lockMsg" style="margin-top:14px"></p>
+      </section>
+    </section>
   </main>
 </div>
 
-<nav class="tabbar" aria-label="Sections">
+<nav class="tabbar" id="tabbar" aria-label="Sections">
   <button class="tab active" data-tab="card" type="button">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 10h4M7 14h7"/></svg>
     My card
@@ -427,6 +467,10 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
   <button class="tab" data-tab="contacts" type="button">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0M16 4a3.5 3.5 0 0 1 0 7M21 20a6 6 0 0 0-4-5.6"/></svg>
     Contacts
+  </button>
+  <button class="tab admin" data-tab="admin" type="button">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/></svg>
+    Admin
   </button>
 </nav>
 
@@ -578,8 +622,15 @@ function(e){return e.hasOwnProperty("authorization_endpoint")&&e.hasOwnProperty(
    readerUrl     Endpoint that reads card photos (Power Automate flow URL or reader worker URL).
    readerToken   Optional shared secret the endpoint checks.
    readerCareful true only for the Claude worker: shows "Read again carefully" (slower, more accurate model). */
-var APP_VERSION = '1.9';
+var APP_VERSION = '2.6';
 var CHANGELOG = [
+  ['2.6', 'Oct 5, 2026', 'Switched to the secured card reader and Dataverse saving flows (sign-in checked). The card page saves contacts through a real .vcf link on phones.'],
+  ['2.5', 'Oct 5, 2026', 'Staff-only: the app asks for the Microsoft work sign-in first. Admin tab for people on the admin list (cards, leads, captures; unpublish and delete). Remove my card and my leads from Dataverse.'],
+  ['2.4', 'Oct 5, 2026', 'Add a contact to your own Outlook contacts from its detail view. Email signature with your QR, copied for Outlook. NFC tag instructions.'],
+  ['2.3', 'Oct 5, 2026', 'Clean-up on save: names and companies typed in capitals or lower case are fixed, UAE numbers get the +971 format, websites get https://. Consent is now saved to its own column in Dataverse (flow 1.0.0.6).'],
+  ['2.2', 'Oct 5, 2026', 'Housekeeping button in Card reader settings: deletes sample and test rows in Dataverse (signed-in only). Card owners get an email when a lead arrives (flow 1.0.0.5).'],
+  ['2.1', 'Oct 5, 2026', 'Share my page and Download QR image on My card. The card reader and Dataverse saving now send your Microsoft sign-in, so the flows can refuse anyone else.'],
+  ['2.0', 'Oct 2, 2026', 'Leads inbox under Contacts: people who filled in the form on your card page wait there until you accept or dismiss them. Accepted leads become contacts and go to Dataverse.'],
   ['1.9', 'Oct 2, 2026', 'Publish my card is connected to Dataverse. One tap gives you a verified card page with a short link.'],
   ['1.8', 'Oct 2, 2026', 'Publish my card: a verified web page with a short link, checked against your Microsoft sign-in (needs the publish link in the setup). A settings switch (quirks) controls the playful wording.'],
   ['1.7', 'Oct 2, 2026', 'My card can now open a web page (card.html) when someone scans the QR: they save your contact and can leave their details. Choose what the QR opens under it.'],
@@ -592,12 +643,13 @@ var CHANGELOG = [
   ['1.0', 'Sep 29, 2026', 'First version: own QR card, capture, contacts list, CSV and JSON export.']
 ];
 var CONFIG = {
-  readerUrl: '',
+  readerUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/14/workflows/04697d93dbbe49d59ae1857b8071bcab/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=0g8OOt4Z5ZtUI6uV9TFZXa3G4wa7ODSTUEEqaR5Ugo0',
   readerToken: '',
   readerCareful: false,
-  saveUrl: '',
+  saveUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/02/workflows/406b0e0123f24bd1a2336b73b64aab13/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=0Qac5qN3UOwhEb07O--gffgF1Hj-NbzpiV6qyNolC1Y',
   publishUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/08/workflows/96f7caa1d6b5441591a6f0b8a9d64796/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=cRhnPJvAQrIlgS92tM04VEcEhR4b8DtQI1iSI9z5KIo',   /* Power Automate 'Publish my card' flow. Checks the Microsoft sign-in before saving. */
   quirks: true,     /* true = playful Great Teacher Onizuka wording in a few places. false = plain wording. */
+  requireSignIn: true, /* true = the app asks for the Microsoft work sign-in before anything else (needs msClientId). */
   /* Microsoft sign-in (fills My card from the work account). Paste the values from the
      Entra app registration "GCS Card Scanner". Leave empty to hide the sign-in button. */
   msClientId: 'c098890f-66d9-43f0-a317-be3c4a4dd2a3',
@@ -660,9 +712,10 @@ var CONFIG = {
   /* ---------- tabs ---------- */
   var tabs = document.querySelectorAll('.tab');
   function showTab(name) {
-    ['card', 'capture', 'contacts'].forEach(function (n) { $('panel-' + n).hidden = n !== name; });
+    ['card', 'capture', 'contacts', 'admin'].forEach(function (n) { $('panel-' + n).hidden = n !== name; });
     for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle('active', tabs[i].dataset.tab === name);
     if (name === 'contacts') renderContacts();
+    if (name === 'admin') loadAdmin(false);
     window.scrollTo(0, 0);
   }
   for (var i = 0; i < tabs.length; i++) tabs[i].addEventListener('click', function (e) { showTab(e.currentTarget.dataset.tab); });
@@ -745,6 +798,24 @@ var CONFIG = {
   });
   $('previewPageBtn').addEventListener('click', function () { if (cardLink) window.open(cardLink, '_blank', 'noopener'); else toast('One moment, then tap again.'); });
   $('copyLinkBtn').addEventListener('click', function () { if (cardLink) copyText(cardLink, 'Page link copied'); else toast('One moment, then tap again.'); });
+  if (navigator.share) $('shareLinkBtn').hidden = false;
+  $('shareLinkBtn').addEventListener('click', function () {
+    if (!cardLink) { toast('One moment, then tap again.'); return; }
+    var name = profile ? (profile.first + ' ' + profile.last).trim() : 'My card';
+    navigator.share({ title: name, text: name + (profile && profile.company ? ', ' + profile.company : ''), url: cardLink }).catch(function () {});
+  });
+  $('sigBtn').addEventListener('click', copySignature);
+  $('nfcBtn').addEventListener('click', showNfcHelp);
+  $('qrDownloadBtn').addEventListener('click', function () {
+    var cv = $('myQR').querySelector('canvas'); if (!cv) { toast('No QR code yet'); return; }
+    var pad = 24, out = document.createElement('canvas'); out.width = cv.width + pad * 2; out.height = cv.height + pad * 2;
+    var g = out.getContext('2d'); g.fillStyle = '#ffffff'; g.fillRect(0, 0, out.width, out.height); g.drawImage(cv, pad, pad);
+    var name = (profile ? (profile.first + '-' + profile.last) : 'card').replace(/[^\w-]+/g, '').toLowerCase() || 'card';
+    out.toBlob(function (blob) {
+      var url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = 'qr-' + name + '.png'; document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 4000); toast('QR image downloaded');
+    }, 'image/png');
+  });
 
   /* ---------- publish my card: a verified page with a short link ---------- */
   function publishCard(silent) {
@@ -769,6 +840,128 @@ var CONFIG = {
     });
   }
   $('publishBtn').addEventListener('click', function () { publishCard(false); });
+
+  /* ---------- leads inbox: visitors who filled in the form on my card page ---------- */
+  var leads = [], leadsBusy = false;
+  function leadsReady() { return !!(publishUrl() && msReady()); }
+  function leadApi(payload, interactive) {
+    return msToken(interactive).then(function (tok) {
+      if (!tok) throw new Error('no sign-in');
+      payload.token = tok;
+      return fetch(publishUrl(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
+    }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  }
+  function normLead(x) {
+    return { id: x.cr18b_cardleadid, name: x.cr18b_name || '', email: x.cr18b_email || '', phone: x.cr18b_phone || '', company: x.cr18b_company || '',
+             note: x.cr18b_note || '', verified: /^verified/i.test(x.cr18b_cardverification || ''), when: x.cr18b_submittedat || x.createdon || '' };
+  }
+  function refreshLeads(interactive) {
+    if (!leadsReady() || leadsBusy) return Promise.resolve();
+    leadsBusy = true;
+    return leadApi({ action: 'leads' }, interactive).then(function (j) {
+      leads = (j && j.ok && Array.isArray(j.leads)) ? j.leads.map(normLead).filter(function (l) { return l.id; }) : [];
+      renderLeads();
+      if (interactive) toast(leads.length ? leads.length + ' lead' + (leads.length > 1 ? 's' : '') + ' waiting' : 'No new leads');
+    }).catch(function () { if (interactive) toast('Couldn\u2019t load leads. Sign in and try again.'); }).then(function () { leadsBusy = false; });
+  }
+  function renderLeads() {
+    var box = $('leadsBox'); box.hidden = !leadsReady();
+    if (box.hidden) return;
+    $('leadCount').textContent = leads.length ? String(leads.length) : '';
+    var ul = $('leadList'); ul.innerHTML = '';
+    if (!leads.length) { ul.appendChild(el('li', 'csub', 'Nothing waiting right now.')); return; }
+    leads.forEach(function (l) {
+      var li = el('li');
+      var head = el('div', 'cname', l.name || '(no name)');
+      head.appendChild(el('span', 'badge' + (l.verified ? ' ok' : ''), l.verified ? 'from your verified page' : 'from a link card'));
+      li.appendChild(head);
+      li.appendChild(el('div', 'csub', [l.company, l.email, l.phone].filter(Boolean).join(' \u00b7 ')));
+      if (l.note) li.appendChild(el('div', 'csub', '\u201c' + l.note + '\u201d'));
+      if (l.when) li.appendChild(el('div', 'csub', fmt(l.when)));
+      var acts = el('div', 'lead-actions');
+      var acc = el('button', 'btn btn-primary', 'Accept'); acc.type = 'button';
+      var dis = el('button', 'btn btn-secondary', 'Dismiss'); dis.type = 'button';
+      acc.addEventListener('click', function () { acceptLead(l, acc, dis); });
+      dis.addEventListener('click', function () { closeLead(l, acc, dis, false); });
+      acts.appendChild(acc); acts.appendChild(dis); li.appendChild(acts);
+      ul.appendChild(li);
+    });
+  }
+  function closeLead(l, acc, dis, accepted) {
+    acc.disabled = dis.disabled = true;
+    return leadApi({ action: 'leaddone', leadId: l.id }, true).then(function () {
+      leads = leads.filter(function (x) { return x.id !== l.id; }); renderLeads();
+      toast(accepted ? 'Added ' + (l.name || 'the lead') + ' to your contacts' : 'Lead dismissed');
+    }).catch(function () { acc.disabled = dis.disabled = false; toast('Couldn\u2019t update the lead. Try again.'); });
+  }
+  function acceptLead(l, acc, dis) {
+    var now = new Date().toISOString();
+    var c = { id: 'lead_' + l.id, name: l.name || 'Unknown', company: l.company, title: '', email: l.email, phone: l.phone, website: '', address: '',
+              event: 'My card page', note: (l.note ? l.note + '\n' : '') + 'Sent through my card page' + (l.verified ? '' : ' (link card)'),
+              consent: true, photo: null, photoBack: null, source: 'lead', capturedAt: l.when || now, updatedAt: now, synced: false };
+    if (!contacts.some(function (x) { return x.id === c.id; })) { contacts.unshift(c); persistContacts(); renderContacts(); }
+    if (saveUrl()) syncContact(c).then(function () { persistContacts(); renderContacts(); });
+    return closeLead(l, acc, dis, true);
+  }
+  $('leadRefresh').addEventListener('click', function () { refreshLeads(true); });
+  function initLeads() { renderLeads(); setTimeout(function () { refreshLeads(false); }, 2500); }
+
+  /* ---------- admin console (R38, R39): the flow decides who is an admin ---------- */
+  var adminData = null, adminChecked = false;
+  function adminRow(title, sub, onDelete, deleteLabel) {
+    var li = el('li'); li.appendChild(el('div', 'cname', title)); if (sub) li.appendChild(el('div', 'csub', sub));
+    if (onDelete) { var acts = el('div', 'lead-actions'); var b = el('button', 'btn btn-secondary danger', deleteLabel); b.type = 'button'; var armed = false;
+      b.addEventListener('click', function () { if (!armed) { armed = true; b.textContent = 'Tap again to confirm'; return; } b.disabled = true; onDelete().then(function () { li.remove(); }, function () { b.disabled = false; armed = false; b.textContent = deleteLabel; toast('Couldn\u2019t delete. Try again.'); }); });
+      acts.appendChild(b); li.appendChild(acts); }
+    return li;
+  }
+  function adminDelete(table, id) { return leadApi({ action: 'admindelete', table: table, id: id }, true).then(function (j) { if (!j || !j.ok) throw new Error('no'); }); }
+  function renderAdmin() {
+    var d = adminData || { cards: [], leads: [], contacts: [] };
+    $('adminCount').textContent = d.cards.length + ' cards';
+    var uc = $('adminCards'); uc.innerHTML = '';
+    d.cards.forEach(function (c) { uc.appendChild(adminRow((c.cr18b_name || '(no name)') + (c.statecode === 1 ? ' (inactive)' : ''), [c.cr18b_title, c.cr18b_company, c.cr18b_owneremail, c.cr18b_publicid ? 'id ' + c.cr18b_publicid : 'no id', c.cr18b_publishedat ? fmt(c.cr18b_publishedat) : ''].filter(Boolean).join(' \u00b7 '), function () { return adminDelete('card', c.cr18b_staffcardid); }, 'Unpublish')); });
+    if (!d.cards.length) uc.appendChild(el('li', 'csub', 'No published cards.'));
+    var ul = $('adminLeads'); ul.innerHTML = '';
+    d.leads.forEach(function (l) { ul.appendChild(adminRow(l.cr18b_name || '(no name)', [l.cr18b_company, l.cr18b_email, 'for ' + (l.cr18b_owneremail || '?'), l.cr18b_cardverification, l.createdon ? fmt(l.createdon) : ''].filter(Boolean).join(' \u00b7 '), function () { return adminDelete('lead', l.cr18b_cardleadid); }, 'Delete')); });
+    if (!d.leads.length) ul.appendChild(el('li', 'csub', 'No leads waiting.'));
+    var un = $('adminContacts'); un.innerHTML = '';
+    d.contacts.forEach(function (c) { un.appendChild(adminRow(c.cr18b_name || '(no name)', [c.cr18b_company, c.cr18b_capturedby, c.cr18b_capturedat ? fmt(c.cr18b_capturedat) : ''].filter(Boolean).join(' \u00b7 '))); });
+    if (!d.contacts.length) un.appendChild(el('li', 'csub', 'Nothing captured yet.'));
+  }
+  function loadAdmin(interactive) {
+    if (!leadsReady()) return Promise.resolve(false);
+    return leadApi({ action: 'adminlist' }, interactive).then(function (j) {
+      if (!j || !j.ok) throw new Error('no');
+      adminData = { cards: j.cards || [], leads: j.leads || [], contacts: j.contacts || [] };
+      $('tabbar').classList.add('has-admin'); renderAdmin(); return true;
+    }).catch(function () { $('tabbar').classList.remove('has-admin'); return false; });
+  }
+  $('adminRefresh').addEventListener('click', function () { loadAdmin(true).then(function (ok) { toast(ok ? 'Refreshed' : 'Admins only'); }); });
+
+  /* ---------- forget me (R41): removes my published card and the leads addressed to me ---------- */
+  function forgetMe() {
+    if (!confirm('Remove your published card and all leads addressed to you from Dataverse? Contacts you captured are kept.')) return;
+    leadApi({ action: 'forgetme' }, true).then(function (j) {
+      if (profile) { delete profile.cardId; delete profile.cardPublishedAt; store.set(K.profile, profile); renderMyCard(); }
+      toast('Removed ' + (j.cards || 0) + ' card and ' + (j.leads || 0) + ' leads');
+    }).catch(function () { toast('Couldn\u2019t remove. Sign in and try again.'); });
+  }
+
+  /* ---------- sign-in gate (R25): staff only ---------- */
+  function lockApp(locked) { document.body.classList.toggle('locked', locked); $('panel-lock').hidden = !locked; ['card', 'capture', 'contacts', 'admin'].forEach(function (n) { if (locked) $('panel-' + n).hidden = true; }); }
+  function enforceSignIn() {
+    if (!CONFIG.requireSignIn || !msReady()) return Promise.resolve(true);
+    return msToken(false).then(function (tok) {
+      if (tok) { lockApp(false); showTab('card'); setTimeout(function () { loadAdmin(false); }, 1200); return true; }
+      lockApp(true); return false;
+    }).catch(function () { lockApp(true); return false; });
+  }
+  $('lockSignIn').addEventListener('click', function () {
+    $('lockMsg').textContent = 'Opening Microsoft sign-in\u2026';
+    msToken(true).then(function (tok) { if (!tok) throw new Error('no token'); lockApp(false); showTab('card'); toast('Signed in'); setTimeout(function () { loadAdmin(false); }, 800); })
+      .catch(function () { $('lockMsg').textContent = 'Sign-in didn\u2019t finish. Try again.'; });
+  });
 
   /* ---------- personality: Great Teacher Onizuka mode (CONFIG.quirks) ---------- */
   var QUIRKS = {
@@ -950,9 +1143,9 @@ var CONFIG = {
   var sampleFn = null, readCaps = null, sampleOk = false, readCtl = null, useCrop = true;
   var shots = { front: null, back: null };
   var readerCfg = store.get(K.reader, null) || {};
-  function readerUrl() { return String(readerCfg.url || CONFIG.readerUrl || '').trim(); }
+  function readerUrl() { return String(CONFIG.readerUrl || readerCfg.url || '').trim(); }   /* built-in secured flow wins over an older pasted link */
   function readerToken() { return String(readerCfg.token || CONFIG.readerToken || ''); }
-  function saveUrl() { return String(readerCfg.saveUrl || CONFIG.saveUrl || '').trim(); }
+  function saveUrl() { return String(CONFIG.saveUrl || readerCfg.saveUrl || '').trim(); }
   function publishUrl() { return String(readerCfg.publishUrl || CONFIG.publishUrl || '').trim(); }
   function canRead() { return !!readerUrl() || sampleOk; }
   function hostOf(u) { try { return new URL(u).host; } catch (e) { return String(u); } }
@@ -1015,6 +1208,20 @@ var CONFIG = {
       closeSheet(); updatePhotoUI(); toast(u ? 'Reader saved' : 'Reader cleared');
     });
     body.appendChild(f);
+    if (publishUrl() && msReady()) {
+      var hk = el('button', 'btn btn-secondary btn-block', 'Delete sample and test rows in Dataverse'); hk.type = 'button'; hk.style.marginTop = '14px';
+      hk.addEventListener('click', function () {
+        if (!confirm('Delete Copilot\u2019s sample people and the test rows from Staff Cards, Card Leads and Captured Cards? Real cards and leads are kept.')) return;
+        hk.disabled = true; hk.textContent = 'Cleaning up\u2026';
+        leadApi({ action: 'cleanup' }, true).then(function (j) {
+          toast('Removed ' + (j.cards || 0) + ' sample cards, ' + (j.leads || 0) + ' test leads, ' + (j.contacts || 0) + ' test contacts');
+          hk.textContent = 'Done';
+        }).catch(function () { toast('Clean-up failed. Sign in and try again.'); hk.disabled = false; hk.textContent = 'Delete sample and test rows in Dataverse'; });
+      });
+      body.appendChild(hk);
+      var fm = el('button', 'btn btn-secondary danger btn-block', 'Remove my card and my leads from Dataverse'); fm.type = 'button'; fm.style.marginTop = '10px';
+      fm.addEventListener('click', forgetMe); body.appendChild(fm);
+    }
     if (readerCfg.url || readerCfg.saveUrl || readerCfg.publishUrl) {
       var share = el('button', 'btn btn-secondary btn-block', 'Copy setup link for colleagues'); share.type = 'button'; share.style.marginTop = '14px';
       share.addEventListener('click', function () { copyText(setupLinkFor(readerCfg), 'Setup link copied'); });
@@ -1067,10 +1274,21 @@ var CONFIG = {
     if (extras.length) out.other = (out.other ? out.other + ', ' : '') + extras.join(', ');
     return out;
   }
+  /* Microsoft sign-in token for the flows. Silent when possible; asks to sign in only after a flow says 401. */
+  function authToken(interactive) {
+    if (typeof msReady !== 'function' || !msReady()) return Promise.resolve('');
+    return msToken(interactive).then(function (t) { return t || ''; }, function () { return ''; });
+  }
   function postOne(b64, side, careful, signal) {
+    return authToken(false).then(function (auth) { return postOneWith(b64, side, careful, signal, auth); }).then(null, function (e) {
+      if (e && e.code === 'http' && e.status === 401) return authToken(true).then(function (auth) { if (!auth) throw e; return postOneWith(b64, side, careful, signal, auth); });
+      throw e;
+    });
+  }
+  function postOneWith(b64, side, careful, signal, auth) {
     return fetch(readerUrl(), {
       method: 'POST', headers: { 'Content-Type': 'text/plain' }, signal: signal,
-      body: JSON.stringify({ v: 1, images: [b64], side: side, careful: !!careful, token: readerToken() })
+      body: JSON.stringify({ v: 1, images: [b64], side: side, careful: !!careful, token: readerToken(), auth: auth })
     }).then(function (resp) {
       return resp.text().then(function (t) {
         var j = null; try { j = JSON.parse(t); } catch (e) {}
@@ -1427,6 +1645,7 @@ var CONFIG = {
     if (bad) return;
     if (c.website && !/^https?:\/\//i.test(c.website)) c.website = 'https://' + c.website;
     c.consent = $('cConsent').checked;
+    tidyContact(c);
     var now = new Date().toISOString();
     if (!editingId && !forceSave) {
       var dup = findDuplicate(c);
@@ -1475,6 +1694,44 @@ var CONFIG = {
       } catch (e) { toast('Dictation isn\u2019t available here. Type the note instead.'); setDictating(false); }
     });
   }
+
+  /* ---------- clean-up on save (R18): shouting or whispering names, phone formats, website prefix ---------- */
+  function titleCase(v) {
+    var s = String(v || '').trim(); if (!s) return s;
+    var letters = s.replace(/[^A-Za-z]/g, ''); if (letters.length < 2) return s;
+    var allUpper = letters === letters.toUpperCase(), allLower = letters === letters.toLowerCase();
+    if (!allUpper && !allLower) return s;
+    var keep = { 'LLC': 1, 'FZE': 1, 'FZCO': 1, 'PJSC': 1, 'LTD': 1, 'PLC': 1, 'DMCC': 1, 'UAE': 1, 'USA': 1, 'UK': 1, 'KSA': 1, 'GCC': 1, 'IT': 1, 'AI': 1, 'CEO': 1, 'CFO': 1, 'COO': 1, 'CTO': 1, 'HR': 1, 'VP': 1 };
+    var small = { 'of': 1, 'and': 1, 'the': 1, 'for': 1, 'de': 1, 'al': 1, 'bin': 1, 'bint': 1 };
+    return s.toLowerCase().split(/(\s+|-|\/)/).map(function (w, i) {
+      if (/^(\s+|-|\/)$/.test(w) || !w) return w;
+      var up = w.toUpperCase(); if (keep[up]) return up;
+      if (i > 0 && small[w]) return w;
+      return w.replace(/^(\(?)(\w)/, function (m, p, ch) { return p + ch.toUpperCase(); });
+    }).join('');
+  }
+  function tidyPhone(v) {
+    var s = String(v || '').trim(); if (!s) return s;
+    var d = s.replace(/[^\d+]/g, '').replace(/(?!^)\+/g, '');
+    if (/^00/.test(d)) d = '+' + d.slice(2);
+    if (/^0[25-9]\d{8}$/.test(d)) d = '+971' + d.slice(1);          // local UAE number written with a leading 0
+    if (/^\+9715\d{8}$/.test(d)) return d.replace(/^(\+971)(5\d)(\d{3})(\d{4})$/, '$1 $2 $3 $4');
+    if (/^\+971[2-9]\d{7}$/.test(d)) return d.replace(/^(\+971)(\d)(\d{3})(\d{4})$/, '$1 $2 $3 $4');
+    return d.length >= 7 ? (/^\+/.test(s) ? s.replace(/\s+/g, ' ') : d) : s;   // other countries: keep as written
+  }
+  function tidyWebsite(v) {
+    var s = String(v || '').trim(); if (!s) return s;
+    if (!/^https?:\/\//i.test(s)) s = 'https://' + s.replace(/^\/+/, '');
+    return s.replace(/\/+$/, '');
+  }
+  function tidyContact(c) {
+    c.name = titleCase(c.name); c.company = titleCase(c.company);
+    if (c.title && c.title.replace(/[^A-Za-z]/g, '') === c.title.replace(/[^A-Za-z]/g, '').toUpperCase()) c.title = titleCase(c.title);
+    c.phone = tidyPhone(c.phone); c.website = tidyWebsite(c.website);
+    if (c.email) c.email = c.email.trim().toLowerCase();
+    return c;
+  }
+  window.__tidy = { titleCase: titleCase, tidyPhone: tidyPhone, tidyWebsite: tidyWebsite };
 
   /* ---------- duplicates ---------- */
   var forceSave = false;
@@ -1535,7 +1792,12 @@ var CONFIG = {
   var syncing = false;
   function syncContact(c) {
     if (!saveUrl() || c.synced) return Promise.resolve(false);
-    return fetch(saveUrl(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(dataverseRow(c)) })
+    function send(auth) {
+      var row = dataverseRow(c); row.auth = auth;
+      return fetch(saveUrl(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(row) });
+    }
+    return authToken(false).then(send)
+      .then(function (r) { if (r.status === 401) return authToken(true).then(function (auth) { if (!auth) return r; return send(auth); }); return r; })
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); c.synced = true; c.syncedAt = new Date().toISOString(); c.syncError = ''; return true; })
       .catch(function (e) { c.synced = false; c.syncError = String(e && e.message || e); return false; });
   }
@@ -1609,6 +1871,11 @@ var CONFIG = {
       $('editingName').textContent = c.name; $('editingBanner').hidden = false; $('cSave').textContent = 'Save changes';
       showTab('capture');
     });
+    if (msReady()) {
+      var ol = el('button', 'btn btn-secondary', 'Add to my Outlook contacts'); ol.type = 'button';
+      ol.addEventListener('click', function () { ol.disabled = true; ol.textContent = 'Adding\u2026'; addToOutlook(c).then(function () { ol.textContent = 'In Outlook'; }, function () { ol.disabled = false; ol.textContent = 'Add to my Outlook contacts'; }); });
+      row.appendChild(ol);
+    }
     var del = el('button', 'btn btn-secondary danger', 'Delete'); del.type = 'button'; var armed = false;
     del.addEventListener('click', function () {
       if (!armed) { armed = true; del.textContent = 'Tap again to delete'; return; }
@@ -1710,20 +1977,82 @@ var CONFIG = {
   function msReady() { return !!(CONFIG.msClientId && CONFIG.msTenantId && window.msal && window.msal.PublicClientApplication); }
   function msClient() {
     if (msApp) return Promise.resolve(msApp);
-    msApp = new msal.PublicClientApplication({
+    var Impl = window.__msalOverride || msal.PublicClientApplication;   /* __msalOverride is only used by automated tests */
+    msApp = new Impl({
       auth: { clientId: CONFIG.msClientId, authority: 'https://login.microsoftonline.com/' + CONFIG.msTenantId, redirectUri: location.href.split(/[?#]/)[0] },
       cache: { cacheLocation: 'localStorage' }
     });
     return msApp.initialize().then(function () { return msApp; });
   }
-  function msToken(interactive) {
-    var scopes = ['User.Read'];
+  function msToken(interactive, extraScopes) {
+    var scopes = ['User.Read'].concat(extraScopes || []);
     return msClient().then(function (app) {
       var acct = app.getActiveAccount() || app.getAllAccounts()[0];
       if (acct) app.setActiveAccount(acct);
       if (acct) return app.acquireTokenSilent({ scopes: scopes, account: acct }).then(function (r) { return r.accessToken; }, function () { return interactive ? app.loginPopup({ scopes: scopes }).then(function (r) { app.setActiveAccount(r.account); return r.accessToken; }) : null; });
       return interactive ? app.loginPopup({ scopes: scopes }).then(function (r) { app.setActiveAccount(r.account); return r.accessToken; }) : null;
     });
+  }
+  /* ---------- Outlook contacts (R31): writes the contact into the signed-in user's own mailbox ---------- */
+  function outlookContact(c) {
+    var parts = String(c.name || '').trim().split(/\s+/), last = parts.length > 1 ? parts.pop() : '', first = parts.join(' ');
+    var o = { givenName: first || c.name || '', surname: last, companyName: c.company || '', jobTitle: c.title || '',
+              personalNotes: [c.event ? 'Met at: ' + c.event : '', c.note || '', 'Saved from GCS'].filter(Boolean).join('\n') };
+    if (c.email) o.emailAddresses = [{ address: c.email, name: c.name || c.email }];
+    if (c.phone) o.mobilePhone = c.phone;
+    var office = /Office\s*([+\d][\d\s().-]{5,})/i.exec(c.note || ''); if (office) o.businessPhones = [office[1].trim()];
+    if (c.website) o.businessHomePage = c.website;
+    if (c.address) o.businessAddress = { street: c.address };
+    return o;
+  }
+  function addToOutlook(c) {
+    return msToken(true, ['Contacts.ReadWrite']).then(function (tok) {
+      if (!tok) throw new Error('no sign-in');
+      return fetch('https://graph.microsoft.com/v1.0/me/contacts', { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, body: JSON.stringify(outlookContact(c)) });
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      c.outlookAt = new Date().toISOString(); persistContacts(); toast('Added to your Outlook contacts'); return true;
+    }).catch(function (e) { toast(/consent|AADSTS65001/i.test(String(e && (e.errorCode || e.message))) ? 'Outlook access needs approval. Ask IT to allow Contacts.ReadWrite for GCS.' : 'Couldn\u2019t add to Outlook. Sign in and try again.'); throw e; });
+  }
+
+  /* ---------- email signature (R10, step 1): copy a ready-made signature with the QR into Outlook ---------- */
+  function signatureHtml(p, link, qrDataUrl) {
+    function esc(v) { return String(v || '').replace(/[&<>"]/g, function (ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]; }); }
+    var name = esc((p.first + ' ' + p.last).trim()), lines = [];
+    if (p.title) lines.push(esc(p.title)); if (p.company) lines.push(esc(p.company) + (p.department ? ', ' + esc(p.department) : ''));
+    var contact = [];
+    if (p.phone) contact.push('<a href="tel:' + esc(p.phone.replace(/\s+/g, '')) + '" style="color:#0E3B43;text-decoration:none">' + esc(p.phone) + '</a>');
+    if (p.email) contact.push('<a href="mailto:' + esc(p.email) + '" style="color:#0E3B43;text-decoration:none">' + esc(p.email) + '</a>');
+    if (p.web) contact.push('<a href="' + esc(p.web) + '" style="color:#0E3B43;text-decoration:none">' + esc(p.web.replace(/^https?:\/\//, '')) + '</a>');
+    return '<table cellpadding="0" cellspacing="0" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#14262B;line-height:1.4"><tr>' +
+      (qrDataUrl ? '<td style="padding:0 14px 0 0;vertical-align:top"><a href="' + esc(link) + '"><img src="' + qrDataUrl + '" width="84" height="84" alt="Scan for my digital card" style="display:block;border:0"></a></td>' : '') +
+      '<td style="vertical-align:top;border-left:3px solid #C8963E;padding-left:12px"><div style="font-size:15px;font-weight:bold">' + name + '</div>' +
+      (lines.length ? '<div style="color:#516569">' + lines.join('<br>') + '</div>' : '') +
+      (contact.length ? '<div style="margin-top:6px">' + contact.join(' &nbsp;&middot;&nbsp; ') + '</div>' : '') +
+      (link ? '<div style="margin-top:6px"><a href="' + esc(link) + '" style="color:#C8963E;font-weight:bold;text-decoration:none">My digital card &rarr;</a></div>' : '') +
+      '</td></tr></table>';
+  }
+  function copySignature() {
+    if (!profile) return;
+    var cv = $('myQR').querySelector('canvas'), qr = '';
+    if (cv) { var small = document.createElement('canvas'); small.width = small.height = 168; var g = small.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 168, 168); g.drawImage(cv, 8, 8, 152, 152); qr = small.toDataURL('image/png'); }
+    var html = signatureHtml(profile, cardLink || '', qr), text = [(profile.first + ' ' + profile.last).trim(), profile.title, profile.company, profile.phone, profile.email, cardLink].filter(Boolean).join('\n');
+    window.__lastSignature = html;
+    function fallback() {
+      var body = openSheet('Email signature');
+      body.appendChild(el('p', null, 'Copy everything below, then paste it into Outlook: Settings, Mail, Compose and reply, Email signature.'));
+      var box = el('div'); box.style.cssText = 'border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff;overflow:auto'; box.innerHTML = html; body.appendChild(box);
+    }
+    if (navigator.clipboard && window.ClipboardItem) {
+      navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([text], { type: 'text/plain' }) })])
+        .then(function () { toast('Signature copied. Paste it into Outlook\u2019s signature settings.'); }, fallback);
+    } else fallback();
+  }
+  function showNfcHelp() {
+    var body = openSheet('Put my card on an NFC tag');
+    body.appendChild(el('p', null, 'Any blank NFC tag or card works (a few dirhams each). Tap-to-open on iPhone and Android, no app needed on the other side.'));
+    var ol = el('ol'); ['Install a free tag writer app (for example NFC Tools).', 'In it choose Write, then Add a record, then URL.', 'Paste your page link (Copy page link above).', 'Hold the tag to the top of your phone until it says Written.', 'Optional: lock the tag so nobody can rewrite it.'].forEach(function (t) { ol.appendChild(el('li', null, t)); }); body.appendChild(ol);
+    body.appendChild(el('p', 'muted', 'Use the web page QR mode so the tag keeps working when your title or number changes.'));
   }
   function fillFromMicrosoft() {
     toast('Signing in with Microsoft');
@@ -1799,6 +2128,8 @@ var CONFIG = {
   $('installDismiss').addEventListener('click', function () { settings.hideInstall = true; store.set(K.settings, settings); $('installHint').hidden = true; });
   offerSetupLink();
   setTimeout(function () { syncAll(true); }, 1500);
+  initLeads();
+  enforceSignIn();
   $('cEvent').value = settings.event || '';
   renderMyCard();
   renderContacts();

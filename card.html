@@ -232,6 +232,7 @@ textarea{min-height:88px;resize:vertical}
    quirks    true = playful Great Teacher Onizuka wording and sample card (English only). Set false for plain professional wording. */
 var CONFIG = {
   cardUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/26/workflows/3cae8d3bf3a54d079a1bbe95bda554f6/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=1NFydb7KaYRQJZyj9UWp53kJkryIkDRn1I-GErgmOPQ',
+  vcardUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/00/workflows/a58f4d59c3b448fab87803caf8179efe/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=5klYhy4Rf5XEa8N8CRIBc0jEjrgWvzryj5kP5UGJ9z4',    /* Power Automate "GCS vCard" flow (GET). Phones open this as a real .vcf and add the contact. */
   leadUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/02/workflows/e8d331961b6a473b95457dc9bae5a921/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=WAWi9e5CRoDHybamh8HCfYSqUa6Z3cQh5jKxCt2TCmk',
   privacyUrl: '',
   allowLinkCards: true,
@@ -485,16 +486,25 @@ var QUIRKS = {
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok, fallback); else fallback();
     function fallback() { var ta = document.createElement('textarea'); ta.value = txt; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); ok(); } catch (e) {} ta.remove(); }
   }
+  var ANDROID = /Android/i.test(navigator.userAgent);
+  function b64url(str) {
+    var bytes = new TextEncoder().encode(str), bin = ''; for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  /* A real .vcf link served by the Get card flow. Phones open it in Contacts (the share sheet and blob downloads do not). */
+  function vcardLink() {
+    if (!CONFIG.vcardUrl) return '';
+    if (state.mode === 'server' && state.cardId) return CONFIG.vcardUrl + '&id=' + encodeURIComponent(state.cardId);
+    var c = state.card, o = { f: c.first, l: c.last, t: c.title, o: c.company, m: c.mobile, p: c.office, e: c.email, u: c.web, s: c.address }, p = {};
+    Object.keys(o).forEach(function (k) { if (o[k]) p[k] = o[k]; });
+    return CONFIG.vcardUrl + '&d=' + b64url(JSON.stringify(p));
+  }
   function saveContact() {
-    var c = state.card, fname = fileName(c), blob = new Blob([vcard(c)], { type: 'text/vcard;charset=utf-8' }), file = null;
-    try { file = new File([blob], fname, { type: 'text/vcard' }); } catch (e) {}
-    function viaLink() {
-      var url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = fname; document.body.appendChild(a); a.click();
-      setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 4000);
-    }
-    if (IOS && file && navigator.canShare && navigator.canShare({ files: [file] })) {
-      navigator.share({ files: [file], title: fullName(c) }).catch(function (e) { if (!e || e.name !== 'AbortError') viaLink(); });
-    } else viaLink();
+    var c = state.card, fname = fileName(c), blob = new Blob([vcard(c)], { type: 'text/vcard;charset=utf-8' });
+    var link = vcardLink();
+    if (link && (IOS || ANDROID)) { location.href = link; showCopyHint(); return; }
+    var url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = fname; document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 4000);
     showCopyHint();
   }
   function showCopyHint() {
