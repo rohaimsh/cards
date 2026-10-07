@@ -1,0 +1,12 @@
+{
+  "navigationFallback": { "rewrite": "/index.html", "exclude": ["/card.html", "/*.{png,jpg,svg,ico,json,md}"] },
+  "globalHeaders": {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(self), geolocation=()",
+    "Cache-Control": "no-cache"
+  },
+  "mimeTypes": { ".vcf": "text/vcard" },
+  "responseOverrides": { "404": { "rewrite": "/card.html" } }
+}
