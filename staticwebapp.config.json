@@ -1,5 +1,5 @@
 {
-  "navigationFallback": { "rewrite": "/index.html", "exclude": ["/card.html", "/*.{png,jpg,svg,ico,json,md}"] },
+  "navigationFallback": { "rewrite": "/index.html", "exclude": ["/card.html", "/sw.js", "/*.{png,jpg,svg,ico,json,md}"] },
   "globalHeaders": {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",

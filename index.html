@@ -252,6 +252,17 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
 }
 .toast.show{opacity:1}
 @media (prefers-reduced-motion:reduce){ *{transition:none !important;animation:none !important} }
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:10px}
+.kpi{border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;background:var(--surface)}
+.kpi b{display:block;font-size:26px;font-weight:600;line-height:1.1}
+.kpi span{font-size:13px;color:var(--ink-2)}
+.bars{display:block;width:100%;height:auto;margin-top:8px}
+.bars rect{fill:var(--accent)} .bars text{fill:var(--ink-2);font-size:9px;font-family:inherit}
+.rank{list-style:none;padding:0;margin:6px 0 0;font-size:14px}
+.rank li{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--line)}
+.rank li span:last-child{color:var(--ink-2)}
+.bgprev{width:100%;border-radius:var(--radius);display:block;margin-top:12px;border:1px solid var(--line)}
+.toggle-row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px;font-size:14px}
 </style>
 </head>
 <body>
@@ -305,6 +316,8 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
         <button class="btn btn-secondary" id="copyLinkBtn" type="button">Copy page link</button>
         <button class="btn btn-secondary" id="qrDownloadBtn" type="button">Download QR image</button>
         <button class="btn btn-secondary" id="sigBtn" type="button">Email signature</button>
+        <button class="btn btn-secondary" id="bgBtn" type="button">Meeting background</button>
+        <button class="btn btn-secondary" id="pagePhotoBtn" type="button" hidden>Photo on my page: off</button>
         <button class="btn btn-secondary" id="nfcBtn" type="button">NFC tag</button>
         <button class="btn btn-secondary" id="copyCardBtn" type="button">Copy details</button>
         <button class="btn btn-secondary" id="msRefresh" type="button" hidden>Refresh from Microsoft</button>
@@ -342,6 +355,7 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
           </div>
           <div class="row read-row" id="readRow" hidden>
             <button class="btn btn-primary" id="readBtn" type="button">Read the card</button>
+            <button class="btn btn-secondary" id="queueBtn" type="button">Save, read later</button>
             <button class="btn btn-secondary" id="clearPhotos" type="button">Remove photos</button>
           </div>
           <div class="read-state" id="readState" hidden><span id="readStatus"></span><button class="link-btn" id="readStop" type="button" hidden>Stop</button></div>
@@ -430,13 +444,24 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
         <div class="row" id="syncRow" hidden>
           <button class="btn btn-primary" id="syncBtn" type="button">Send to Dataverse now</button>
         </div>
-        <p class="hint" style="margin-top:14px"><button class="link-btn" id="readerSettings" type="button">Card reader settings</button></p>
+        <p class="hint" style="margin-top:14px"><button class="link-btn" id="readerSettings" type="button">Card reader settings</button> &nbsp;&middot;&nbsp; <button class="link-btn" id="signOutPhone" type="button" hidden>Sign out of this phone</button></p>
       </section>
     </section>
     <section class="panel" id="panel-admin" hidden>
       <div class="list-head"><h2>Admin</h2><span class="count" id="adminCount"></span></div>
       <p class="sub">Everyone's published cards, the leads waiting for review, and recent captures. Only people on the admin list see this.</p>
       <div class="row"><button class="btn btn-secondary" id="adminRefresh" type="button">Refresh</button></div>
+      <section id="insights" hidden>
+        <h3 class="h3">Team insights</h3>
+        <div class="kpis" id="kpis"></div>
+        <h3 class="h3">Contacts captured per day (last 14 days)</h3>
+        <div id="barsBox"></div>
+        <h3 class="h3">Who is capturing (last 30 days)</h3>
+        <ul class="rank" id="rankWho"></ul>
+        <h3 class="h3">Companies met (last 30 days)</h3>
+        <ul class="rank" id="rankCo"></ul>
+        <p class="hint" id="insightNote"></p>
+      </section>
       <h3 class="h3">Published cards</h3>
       <ul class="clist" id="adminCards"></ul>
       <h3 class="h3">Leads waiting</h3>
@@ -508,7 +533,9 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
     </div>
     <label>Name in Arabic <small>(optional)</small><input name="ar" type="text" lang="ar" dir="rtl"></label>
     <label>Job title <small>(optional)</small><input name="title" type="text" autocomplete="organization-title"></label>
+    <label>Job title in Arabic <small>(optional)</small><input name="titleAr" type="text" lang="ar" dir="rtl"></label>
     <label>Company <small>(optional)</small><input name="company" type="text" autocomplete="organization"></label>
+    <label>Company in Arabic <small>(optional)</small><input name="companyAr" type="text" lang="ar" dir="rtl"></label>
     <label>Mobile<input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+971 ..."></label>
     <label>Email<input name="email" type="email" inputmode="email" autocomplete="email"></label>
     <label>Website or LinkedIn <small>(optional)</small><input name="web" type="url" inputmode="url" autocomplete="url"></label>
@@ -622,8 +649,9 @@ function(e){return e.hasOwnProperty("authorization_endpoint")&&e.hasOwnProperty(
    readerUrl     Endpoint that reads card photos (Power Automate flow URL or reader worker URL).
    readerToken   Optional shared secret the endpoint checks.
    readerCareful true only for the Claude worker: shows "Read again carefully" (slower, more accurate model). */
-var APP_VERSION = '2.7';
+var APP_VERSION = '2.8';
 var CHANGELOG = [
+  ['2.8', 'Oct 8, 2026', 'Read later: photos taken without signal are saved and read when you are back online. Better duplicate matching: same phone, or the same name at the same company. Team insights and counters on the Admin tab. Meeting background for Teams and Zoom with your QR. Optional photo on your published page. Arabic job title and company on the card page. The app now opens with no signal for up to 14 days after your last sign-in. Contacts > Sign out of this phone. Clearer message when publishing fails.'],
   ['2.7', 'Oct 5, 2026', 'Card page: visitor details go to the new GCS Get card flow (the old lead flow is retired). The card page now shows its version in the footer.'],
   ['2.6', 'Oct 5, 2026', 'Switched to the secured card reader and Dataverse saving flows (sign-in checked). The card page saves contacts through a real .vcf link on phones.'],
   ['2.5', 'Oct 5, 2026', 'Staff-only: the app asks for the Microsoft work sign-in first. Admin tab for people on the admin list (cards, leads, captures; unpublish and delete). Remove my card and my leads from Dataverse.'],
@@ -753,12 +781,13 @@ var CONFIG = {
     $('pOrg').textContent = [profile.company, profile.department].filter(Boolean).join(', ') + (profile.office ? ' (' + profile.office + ')' : '');
     drawMyQR();
     var pbtn = $('publishBtn'); pbtn.hidden = !(publishUrl() && msReady()); pbtn.textContent = profile.cardId ? 'Update my page' : 'Publish my card';
+    updatePagePhotoBtn();
   }
   /* ---------- web page link and QR ---------- */
   var cardLink = '', qrTicket = 0;
   function b64u(bytes) { var x = ''; for (var i = 0; i < bytes.length; i++) x += String.fromCharCode(bytes[i]); return btoa(x).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
   function cardPayload(p) {
-    var map = { f: p.first, l: p.last, a: p.ar, t: p.title, o: p.company, d: p.department, m: p.phone, p: p.officePhone, e: p.email, u: p.web,
+    var map = { f: p.first, l: p.last, a: p.ar, t: p.title, at: p.titleAr, o: p.company, ao: p.companyAr, d: p.department, m: p.phone, p: p.officePhone, e: p.email, u: p.web,
                 s: [p.street, p.city, p.state, p.postal, p.country].filter(Boolean).join(', ') }, o = {};
     Object.keys(map).forEach(function (k) { if (map[k]) o[k] = map[k]; });
     return o;
@@ -818,13 +847,76 @@ var CONFIG = {
     }, 'image/png');
   });
 
+  /* ---------- meeting background (R11): a picture for Teams or Zoom with my name and QR ---------- */
+  function drawBackground(w, h) {
+    var cv = document.createElement('canvas'); cv.width = w; cv.height = h; var g = cv.getContext('2d'), u = h / 1080;
+    var grad = g.createLinearGradient(0, 0, w, h); grad.addColorStop(0, '#0E3B43'); grad.addColorStop(1, '#1A525C');
+    g.fillStyle = grad; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#C8963E'; g.fillRect(0, 0, w, Math.round(14 * u));
+    var full = (profile.first + ' ' + profile.last).trim(), pad = 80 * u, y = h - 230 * u, qrBox = 250 * u, maxW = w - pad * 2 - qrBox - 50 * u;   // text stays left of the QR panel
+    g.textBaseline = 'alphabetic'; g.textAlign = 'left';
+    var FONT = '-apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans Arabic", Tahoma, sans-serif';
+    function fit(text, weight, px) { var sz = px; g.font = weight + ' ' + Math.round(sz) + 'px ' + FONT; while (g.measureText && g.measureText(text).width > maxW && sz > px * 0.4) { sz -= 2; g.font = weight + ' ' + Math.round(sz) + 'px ' + FONT; } }
+    g.fillStyle = '#F2F6F4'; fit(full, '700', 68 * u); g.fillText(full, pad, y);
+    var lines = [];
+    if (profile.ar) lines.push([profile.ar, 36, '#A6C1C1']);
+    if (profile.title) lines.push([profile.title, 34, '#F2F6F4']);
+    var org = [profile.company, profile.department].filter(Boolean).join(', '); if (org) lines.push([org, 30, '#A6C1C1']);
+    var reach = [profile.phone, profile.email].filter(Boolean).join('   \u00b7   '); if (reach) lines.push([reach, 28, '#C8963E']);
+    lines.forEach(function (l) { y += 50 * u; g.fillStyle = l[2]; fit(l[0], '500', l[1] * u); g.fillText(l[0], pad, y); });
+    var qr = $('myQR').querySelector('canvas');
+    if (qr) {
+      var box = 250 * u, bx = w - pad - box, by = h - 80 * u - box - 40 * u, r = 18 * u;
+      g.fillStyle = '#ffffff'; g.beginPath(); g.moveTo(bx + r, by); g.arcTo(bx + box, by, bx + box, by + box, r); g.arcTo(bx + box, by + box, bx, by + box, r); g.arcTo(bx, by + box, bx, by, r); g.arcTo(bx, by, bx + box, by, r); g.closePath(); g.fill();
+      g.drawImage(qr, bx + 14 * u, by + 14 * u, box - 28 * u, box - 28 * u);
+      g.textAlign = 'center'; g.fillStyle = '#F2F6F4'; g.font = '500 ' + Math.round(26 * u) + 'px ' + FONT; g.fillText('Scan to save my contact', bx + box / 2, by + box + 40 * u);
+    }
+    return cv;
+  }
+  function openBackground() {
+    if (!profile) return;
+    var body = openSheet('Meeting background');
+    body.appendChild(el('p', null, 'A 1920 x 1080 picture with your name, details and QR. Use it as your background in Teams or Zoom, so people can scan you on screen.'));
+    var prev = drawBackground(1920, 1080); prev.className = 'bgprev'; body.appendChild(prev);
+    var row = el('div', 'row'), dl = el('button', 'btn btn-primary', 'Download picture'); dl.type = 'button';
+    dl.addEventListener('click', function () {
+      drawBackground(1920, 1080).toBlob(function (blob) {
+        var url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = 'meeting-background.png'; document.body.appendChild(a); a.click();
+        setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 4000); toast('Background downloaded');
+      }, 'image/png');
+    });
+    row.appendChild(dl); body.appendChild(row);
+    body.appendChild(el('p', 'muted', 'Teams: Settings, Effects and avatars, Background, Add new. Zoom: Settings, Backgrounds and effects, then the plus button. Your own video preview may look mirrored; others see it the right way round.'));
+  }
+  $('bgBtn').addEventListener('click', openBackground);
+
   /* ---------- publish my card: a verified page with a short link ---------- */
+  /* the published card may carry my Microsoft photo (small, opt-in); link cards and QR codes never carry it */
+  function publishPayload() {
+    var o = cardPayload(profile);
+    if (settings.photoOnPage && profile.photo && /^data:image\/(jpeg|png|webp);base64,/.test(profile.photo) && profile.photo.length <= 24000) o.photo = profile.photo;
+    return o;
+  }
+  function updatePagePhotoBtn() {
+    var b = $('pagePhotoBtn'); b.hidden = !(profile && profile.photo && publishUrl() && msReady());
+    b.textContent = 'Photo on my page: ' + (settings.photoOnPage ? 'on' : 'off');
+  }
+  $('pagePhotoBtn').addEventListener('click', function () {
+    settings.photoOnPage = !settings.photoOnPage; store.set(K.settings, settings); updatePagePhotoBtn();
+    var want = settings.photoOnPage;
+    if (!(profile && profile.cardId)) { toast(want ? 'Your photo will show once you publish your card' : 'Your photo stays off your page'); return; }
+    var carries = !!publishPayload().photo;
+    publishCard(true).then(function (ok) {
+      toast(ok ? (want ? (carries ? 'Your photo is on your published page' : 'Published, but your photo is too large for the page') : 'Your photo is removed from your page')
+               : 'Saved on this phone, but your page isn\u2019t updated yet. Tap Update my page when you have signal.');
+    });
+  });
   function publishCard(silent) {
     if (!publishUrl() || !msReady() || !profile) return Promise.resolve(false);
     if (!silent) toast('Publishing your card');
     return msToken(!silent).then(function (tok) {
       if (!tok) throw new Error('no sign-in');
-      return fetch(publishUrl(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ v: 1, token: tok, card: cardPayload(profile) }) });
+      return fetch(publishUrl(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ v: 1, token: tok, card: publishPayload() }) });
     }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
@@ -835,8 +927,9 @@ var CONFIG = {
       renderMyCard();
       if (!silent) toast('Your card page is live');
       return true;
-    }).catch(function () {
-      if (!silent) toast('Couldn\u2019t publish. Sign in again and retry.');
+    }).catch(function (e) {
+      var m = /HTTP (\d+)/.exec(String(e && e.message || ''));
+      if (!silent) toast('Couldn\u2019t publish' + (m ? ' (error ' + m[1] + ')' : '') + '. Sign in again and retry. If it keeps failing, tell your admin.');
       return false;
     });
   }
@@ -900,6 +993,23 @@ var CONFIG = {
     var c = { id: 'lead_' + l.id, name: l.name || 'Unknown', company: l.company, title: '', email: l.email, phone: l.phone, website: '', address: '',
               event: 'My card page', note: (l.note ? l.note + '\n' : '') + 'Sent through my card page' + (l.verified ? '' : ' (link card)'),
               consent: true, photo: null, photoBack: null, source: 'lead', capturedAt: l.when || now, updatedAt: now, synced: false };
+    var dup = contacts.some(function (x) { return x.id === c.id; }) ? null : findDuplicate(c);
+    if (dup && dupReason !== 'the same email') dup = null;   // only an exact email proves it is the same person; a shared office phone or a similar name becomes its own contact, you can merge by hand
+    if (dup) {
+      dup.mergedLeads = dup.mergedLeads || [];
+      if (dup.mergedLeads.indexOf(l.id) < 0) {                          // a retry after a failed close must not append twice
+        dup.mergedLeads.push(l.id);
+        var differs = [];
+        ['company', 'email', 'phone'].forEach(function (k) {
+          if (!c[k]) return;
+          if (!dup[k]) dup[k] = c[k]; else if (String(dup[k]).toLowerCase() !== String(c[k]).toLowerCase()) differs.push(k + ' ' + c[k]);
+        });
+        dup.note = (dup.note ? dup.note + '\n' : '') + 'Also sent through my card page' + (differs.length ? ' (' + differs.join(', ') + ')' : '') + (l.note ? ': ' + l.note : '');
+        dup.consent = true; dup.updatedAt = now; dup.synced = false; persistContacts(); renderContacts();
+        if (saveUrl()) syncContact(dup).then(function () { persistContacts(); renderContacts(); });
+      }
+      return closeLead(l, acc, dis, true);
+    }
     if (!contacts.some(function (x) { return x.id === c.id; })) { contacts.unshift(c); persistContacts(); renderContacts(); }
     if (saveUrl()) syncContact(c).then(function () { persistContacts(); renderContacts(); });
     return closeLead(l, acc, dis, true);
@@ -917,8 +1027,53 @@ var CONFIG = {
     return li;
   }
   function adminDelete(table, id) { return leadApi({ action: 'admindelete', table: table, id: id }, true).then(function (j) { if (!j || !j.ok) throw new Error('no'); }); }
+  /* ---------- team insights (R46, R61): counters worked out from what the Admin tab already loads ---------- */
+  function svgEl(name, attrs) { var n = document.createElementNS('http://www.w3.org/2000/svg', name); Object.keys(attrs || {}).forEach(function (k) { n.setAttribute(k, attrs[k]); }); return n; }
+  function topN(map, n) { return Object.keys(map).map(function (k) { return [k, map[k]]; }).sort(function (a, b) { return b[1] - a[1] || (a[0] < b[0] ? -1 : 1); }).slice(0, n); }
+  function renderInsights() {
+    var box = $('insights'); box.hidden = !adminData; if (!adminData) return;
+    var d = adminData, now = Date.now(), DAY = 864e5, c7 = 0, c30 = 0, who = Object.create(null), cos = Object.create(null), perDay = Object.create(null);
+    function dayOf(ms) { var x = new Date(ms); return x.getFullYear() + '-' + (x.getMonth() < 9 ? '0' : '') + (x.getMonth() + 1) + '-' + (x.getDate() < 10 ? '0' : '') + x.getDate(); }   // the viewer's own calendar day
+    d.contacts.forEach(function (c) {
+      var t = Date.parse(c.cr18b_capturedat || c.createdon || ''); if (isNaN(t)) return;
+      var age = (now - t) / DAY;
+      if (age <= 7) c7++;
+      if (age <= 30) {
+        c30++;
+        var w = String(c.cr18b_capturedby || 'unknown').replace(/\s*<.*>\s*$/, '').trim() || 'unknown'; who[w] = (who[w] || 0) + 1;
+        var co = String(c.cr18b_company || '').trim(); if (co) cos[co] = (cos[co] || 0) + 1;
+      }
+      var k = dayOf(t); perDay[k] = (perDay[k] || 0) + 1;
+    });
+    var active = d.cards.filter(function (c) { return c.statecode !== 1; }).length;
+    var verified = d.leads.filter(function (l) { return /^verified/i.test(l.cr18b_cardverification || ''); }).length;
+    var kp = $('kpis'); kp.innerHTML = '';
+    [[active, 'published cards'], [d.leads.length, 'leads waiting'], [c7, 'contacts, last 7 days'], [c30, 'contacts, last 30 days'],
+     [Object.keys(who).length, 'people capturing'], [(d.leads.length ? Math.round(100 * verified / d.leads.length) : 0) + '%', 'leads from verified cards']].forEach(function (k) {
+      var div = el('div', 'kpi'); div.appendChild(el('b', null, String(k[0]))); div.appendChild(el('span', null, k[1])); kp.appendChild(div);
+    });
+    var days = [], max = 1, i;
+    for (i = 13; i >= 0; i--) { var dt = new Date(now - i * DAY), key = dayOf(dt.getTime()), n = perDay[key] || 0; days.push([key, n, dt.getDate()]); max = Math.max(max, n); }
+    var svg = svgEl('svg', { 'class': 'bars', viewBox: '0 0 308 96', role: 'img', 'aria-label': 'Contacts captured per day over the last 14 days' });
+    days.forEach(function (x, j) {
+      var h = Math.round(58 * x[1] / max), bx = 4 + j * 22;
+      svg.appendChild(svgEl('rect', { x: bx, y: 70 - h, width: 16, height: Math.max(h, x[1] ? 2 : 0), rx: 2 }));
+      if (x[1]) { var t1 = svgEl('text', { x: bx + 8, y: 66 - h, 'text-anchor': 'middle' }); t1.textContent = String(x[1]); svg.appendChild(t1); }
+      if (j % 2 === 0 || j === 13) { var t2 = svgEl('text', { x: bx + 8, y: 86, 'text-anchor': 'middle' }); t2.textContent = String(x[2]); svg.appendChild(t2); }
+    });
+    var bb = $('barsBox'); bb.innerHTML = ''; bb.appendChild(svg);
+    [['rankWho', who, 'Nobody has captured in the last 30 days.'], ['rankCo', cos, 'No companies yet.']].forEach(function (r) {
+      var ul = $(r[0]); ul.innerHTML = ''; var top = topN(r[1], 5);
+      if (!top.length) ul.appendChild(el('li', 'csub', r[2]));
+      top.forEach(function (t) { var li = el('li'); li.appendChild(el('span', null, t[0])); li.appendChild(el('span', null, String(t[1]))); ul.appendChild(li); });
+    });
+    $('insightNote').textContent = d.contacts.length >= 200 ? 'Counts use the latest 200 captures, so a very busy month may show lower than the real total.' : '';
+    $('insightNote').hidden = !$('insightNote').textContent;
+  }
+  window.__insights = { render: renderInsights };
   function renderAdmin() {
     var d = adminData || { cards: [], leads: [], contacts: [] };
+    renderInsights();
     $('adminCount').textContent = d.cards.length + ' cards';
     var uc = $('adminCards'); uc.innerHTML = '';
     d.cards.forEach(function (c) { uc.appendChild(adminRow((c.cr18b_name || '(no name)') + (c.statecode === 1 ? ' (inactive)' : ''), [c.cr18b_title, c.cr18b_company, c.cr18b_owneremail, c.cr18b_publicid ? 'id ' + c.cr18b_publicid : 'no id', c.cr18b_publishedat ? fmt(c.cr18b_publishedat) : ''].filter(Boolean).join(' \u00b7 '), function () { return adminDelete('card', c.cr18b_staffcardid); }, 'Unpublish')); });
@@ -951,16 +1106,55 @@ var CONFIG = {
 
   /* ---------- sign-in gate (R25): staff only ---------- */
   function lockApp(locked) { document.body.classList.toggle('locked', locked); $('panel-lock').hidden = !locked; ['card', 'capture', 'contacts', 'admin'].forEach(function (n) { if (locked) $('panel-' + n).hidden = true; }); }
+  /* With no signal the sign-in token cannot be renewed. A phone that signed in within the last OFFLINE_DAYS days may still open the app; every flow call
+     checks the token on the server anyway, and the sign-in is checked again as soon as the phone is really online. The marker is our own, because the
+     sign-in library may drop its cache when iOS ends the app. */
+  var OFFLINE_DAYS = 14, unlockedOffline = false;
+  function markSignedIn() { store.set('alc_lastauth', Date.now()); }
+  function recentlySignedIn() { var t = store.get('alc_lastauth', 0); return typeof t === 'number' && t > 0 && (Date.now() - t) < OFFLINE_DAYS * 864e5; }
+  function reallyOffline() {   // navigator.onLine is true on Wi-Fi with no internet, so ask our own site as well
+    if (navigator.onLine === false) return Promise.resolve(true);
+    var ctl = new AbortController(), timer = setTimeout(function () { ctl.abort(); }, 4000);
+    return fetch(location.href.split(/[?#]/)[0], { method: 'HEAD', cache: 'no-store', signal: ctl.signal }).then(function () { clearTimeout(timer); return false; }, function () { clearTimeout(timer); return true; });
+  }
+  function knownDeviceOffline() { return recentlySignedIn() ? reallyOffline() : Promise.resolve(false); }
+  function unlockForOffline() { unlockedOffline = true; lockApp(false); showTab('card'); toast('Working offline. Your sign-in is checked again when you are back online.'); return true; }
   function enforceSignIn() {
     if (!CONFIG.requireSignIn || !msReady()) return Promise.resolve(true);
+    function openOrLock() { return knownDeviceOffline().then(function (ok) { if (ok) return unlockForOffline(); lockApp(true); return false; }); }
     return msToken(false).then(function (tok) {
-      if (tok) { lockApp(false); showTab('card'); setTimeout(function () { loadAdmin(false); }, 1200); return true; }
-      lockApp(true); return false;
-    }).catch(function () { lockApp(true); return false; });
+      if (tok) { markSignedIn(); lockApp(false); showTab('card'); setTimeout(function () { loadAdmin(false); }, 1200); return true; }
+      return openOrLock();
+    }).catch(function () { return openOrLock(); });
   }
+  function recheckAfterOffline() {
+    if (!unlockedOffline) return;
+    reallyOffline().then(function (off) {
+      if (off) return;                                   // still no real connection: stay as we are
+      msToken(false).then(function (tok) {
+        unlockedOffline = false;
+        if (tok) { markSignedIn(); setTimeout(function () { loadAdmin(false); }, 600); return; }
+        lockApp(true); $('lockMsg').textContent = 'Sign in again to continue. Your contacts are still on this phone.';
+      }, function () {});
+    });
+  }
+  window.addEventListener('online', function () { setTimeout(recheckAfterOffline, 1500); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) recheckAfterOffline(); });
+  function signOutPhone() {
+    if (!confirm('Sign out of this phone? Your contacts stay on it and come back after you sign in again.')) return;
+    store.del('alc_lastauth');
+    try {
+      var drop = [];
+      for (var k = 0; k < localStorage.length; k++) { var key = localStorage.key(k); if (/^msal\./i.test(key) || (CONFIG.msClientId && key.indexOf(CONFIG.msClientId) >= 0)) drop.push(key); }
+      drop.forEach(function (key) { localStorage.removeItem(key); });
+    } catch (e) {}
+    location.reload();
+  }
+  $('signOutPhone').hidden = !msReady();
+  $('signOutPhone').addEventListener('click', signOutPhone);
   $('lockSignIn').addEventListener('click', function () {
     $('lockMsg').textContent = 'Opening Microsoft sign-in\u2026';
-    msToken(true).then(function (tok) { if (!tok) throw new Error('no token'); lockApp(false); showTab('card'); toast('Signed in'); setTimeout(function () { loadAdmin(false); }, 800); })
+    msToken(true).then(function (tok) { if (!tok) throw new Error('no token'); markSignedIn(); unlockedOffline = false; lockApp(false); showTab('card'); toast('Signed in'); setTimeout(function () { loadAdmin(false); }, 800); })
       .catch(function () { $('lockMsg').textContent = 'Sign-in didn\u2019t finish. Try again.'; });
   });
 
@@ -1000,11 +1194,11 @@ var CONFIG = {
     body.appendChild($('profileTpl').content.cloneNode(true));
     var f = body.querySelector('form');
     var vals = profile || {};
-    ['first', 'last', 'ar', 'title', 'company', 'phone', 'email', 'web', 'department', 'office', 'officePhone', 'fax', 'street', 'city', 'state', 'postal', 'country'].forEach(function (n) { f.elements.namedItem(n).value = vals[n] || ''; });
+    ['first', 'last', 'ar', 'title', 'titleAr', 'company', 'companyAr', 'phone', 'email', 'web', 'department', 'office', 'officePhone', 'fax', 'street', 'city', 'state', 'postal', 'country'].forEach(function (n) { f.elements.namedItem(n).value = vals[n] || ''; });
     f.addEventListener('submit', function (ev) {
       ev.preventDefault();
       var p = Object.assign({}, profile || {});
-      ['first', 'last', 'ar', 'title', 'company', 'phone', 'email', 'web', 'department', 'office', 'officePhone', 'fax', 'street', 'city', 'state', 'postal', 'country'].forEach(function (n) { p[n] = f.elements.namedItem(n).value.trim(); });
+      ['first', 'last', 'ar', 'title', 'titleAr', 'company', 'companyAr', 'phone', 'email', 'web', 'department', 'office', 'officePhone', 'fax', 'street', 'city', 'state', 'postal', 'country'].forEach(function (n) { p[n] = f.elements.namedItem(n).value.trim(); });
       var err = f.querySelector('.error'), msg = '';
       if (!p.first || !p.last) msg = 'Add your first and last name.';
       else if (!p.phone && !p.email) msg = 'Add a mobile number or an email, so people can reach you.';
@@ -1280,9 +1474,9 @@ var CONFIG = {
     if (typeof msReady !== 'function' || !msReady()) return Promise.resolve('');
     return msToken(interactive).then(function (t) { return t || ''; }, function () { return ''; });
   }
-  function postOne(b64, side, careful, signal) {
+  function postOne(b64, side, careful, signal, interactive) {
     return authToken(false).then(function (auth) { return postOneWith(b64, side, careful, signal, auth); }).then(null, function (e) {
-      if (e && e.code === 'http' && e.status === 401) return authToken(true).then(function (auth) { if (!auth) throw e; return postOneWith(b64, side, careful, signal, auth); });
+      if (e && e.code === 'http' && e.status === 401 && interactive !== false) return authToken(true).then(function (auth) { if (!auth) throw e; return postOneWith(b64, side, careful, signal, auth); });
       throw e;
     });
   }
@@ -1322,10 +1516,10 @@ var CONFIG = {
     var core = host.split('.')[0].replace(/[-_]+/g, ' ').trim();
     return core.length > 1 ? core.replace(/\b\w/g, function (c) { return c.toUpperCase(); }) : '';
   }
-  function readViaEndpoint(parts, careful, signal) {
+  function readViaEndpoint(parts, careful, signal, interactive) {
     return Promise.all(parts.map(function (p) { return blobToB64(p.blob); })).then(function (b64s) {
       return Promise.all(b64s.map(function (b, i) {
-        return postOne(b, parts[i].side, careful, signal).then(null, function (e) {
+        return postOne(b, parts[i].side, careful, signal, interactive).then(null, function (e) {
           if (e && e.name === 'AbortError') throw e;
           return { __err: e };
         });
@@ -1525,7 +1719,7 @@ var CONFIG = {
       else { img.hidden = true; img.removeAttribute('src'); add.textContent = 'Add photo'; slot.classList.remove('filled'); }
     });
     var any = !!(shots.front || shots.back);
-    $('readRow').hidden = !any || !canRead();
+    $('readRow').hidden = !any || !canRead(); $('queueBtn').hidden = !!editingId;
     $('readHint').hidden = !any || canRead();
     $('cropNote').hidden = !anyCrop;
     $('cropToggle').textContent = useCrop ? 'Use the full photos' : 'Crop to the card';
@@ -1543,7 +1737,8 @@ var CONFIG = {
     setTimeout(function () {
       prepPhoto(file).then(function (shot) {
         shots[side] = shot; draftSource = 'photo'; updatePhotoUI(); setReadStatus('', false);
-        if (canRead()) readCard('quick');
+        if (canRead() && navigator.onLine === false) setReadStatus('No signal. Tap Save, read later, and the card is read when you are back online.', false);
+        else if (canRead()) readCard('quick');
         else $('cName').focus();
       }, function () { setReadStatus('', false); toast('Couldn\u2019t read that photo. Try again.'); });
     }, 30);
@@ -1584,7 +1779,7 @@ var CONFIG = {
         if (e && e.name === 'AbortError') { setReadStatus('', false); return; }
         var msg = (e && e.code === 'http') ? ((e.status === 401 || e.status === 403) ? 'The card reader refused this phone. Ask for a new setup link.' : 'The card reader couldn\u2019t read this one. Try a closer, sharper photo.')
           : (e && e.code === 'bad_json') ? 'The card reader sent something this app couldn\u2019t use.'
-          : 'The card reader didn\u2019t answer. Check your connection, then tap Read the card.';
+          : 'The card reader didn\u2019t answer. Tap Read the card again, or Save, read later.';
         setReadStatus(msg, false); showReadMore();
       });
       return;
@@ -1619,6 +1814,102 @@ var CONFIG = {
   $('readStop').addEventListener('click', function () { if (readCtl) readCtl.abort(); });
   window.__cardsDebug = { shots: function () { return shots; }, autoCrop: autoCrop, fitCanvas: fitCanvas };
   $('typeBtn').addEventListener('click', function () { $('cName').focus(); });
+
+  /* ---------- read later (R23): photos taken without signal are kept and read when the phone is back online ---------- */
+  var queueBusy = false, queueAgain = false, QUEUE_MAX = 12, STORAGE_SOFT_LIMIT = 2200000;   // the browser keeps about 2.5 million characters; the sign-in cache needs room too
+  function storageChars() { var n = 0; try { for (var k = 0; k < localStorage.length; k++) { var key = localStorage.key(k); n += key.length + String(localStorage.getItem(key) || '').length; } } catch (e) {} return n; }
+  function downsizeBlob(blob, max, q) {
+    return new Promise(function (res) {
+      var url = URL.createObjectURL(blob), img = new Image();
+      img.onload = function () { var out = ''; try { out = fitCanvas(img, max).toDataURL('image/jpeg', q); } catch (e) {} URL.revokeObjectURL(url); res(out); };
+      img.onerror = function () { URL.revokeObjectURL(url); res(''); };
+      img.src = url;
+    });
+  }
+  function queuedCards() { return contacts.filter(function (c) { return c.pendingRead; }); }
+  function queueCard() {
+    if (!shots.front && !shots.back) { toast('Add a photo of the card first.'); return; }
+    if (!readerUrl()) { toast('The card reader isn’t set up on this phone.'); return; }
+    if (queuedCards().length >= QUEUE_MAX) { toast(QUEUE_MAX + ' cards are already waiting. Read them first (connect, then Contacts).'); return; }
+    if (storageChars() > STORAGE_SOFT_LIMIT) { toast('This phone is nearly full. Export your contacts and delete old ones first.'); return; }
+    var f = shots.front ? pick(shots.front) : null, b = shots.back ? pick(shots.back) : null;
+    function big(v) { return v ? (v.blob ? downsizeBlob(v.blob, 1100, 0.72) : Promise.resolve('')).then(function (d) { return d || v.data; }) : Promise.resolve(null); }
+    $('queueBtn').disabled = true;
+    Promise.all([big(f), big(b)]).then(function (d) {
+      if (storageChars() + (d[0] ? d[0].length : 0) + (d[1] ? d[1].length : 0) > STORAGE_SOFT_LIMIT) { toast('This phone is nearly full. Export your contacts and delete old ones first.'); return; }
+      var now = new Date().toISOString(), typed = $('cName').value.trim();
+      var c = { id: uid(), name: typed || ('Card to read, ' + fmtShort(now)), placeholderName: !typed,
+                company: $('cCompany').value.trim(), title: $('cTitle').value.trim(), email: $('cEmail').value.trim(), phone: $('cPhone').value.trim(),
+                website: $('cWeb').value.trim(), address: $('cAddress').value.trim(),
+                event: $('cEvent').value.trim(), note: $('cNote').value.trim(), consent: $('cConsent').checked, source: 'photo',
+                photo: d[0], photoBack: d[1], capturedAt: now, updatedAt: now, synced: false, pendingRead: true, readTries: 0 };
+      contacts.unshift(c);
+      if (!persistContacts()) { contacts.shift(); return; }
+      settings.event = c.event; store.set(K.settings, settings);
+      resetForm(); toast(navigator.onLine === false ? 'Saved. It will be read when you have signal.' : 'Saved. Reading it in the background.');
+      processQueue(true);
+    }).then(function () { $('queueBtn').disabled = false; }, function () { $('queueBtn').disabled = false; toast('Couldn’t save that photo. Try again.'); });
+  }
+  function usableRead(r) { return !!(r && (String(r.name || '').trim() || String(r.company || '').trim() || String(r.email || '').trim() || String(r.phone || '').trim())); }
+  function applyReadTo(c, r) {
+    function str(v) { return v == null ? '' : String(v).trim(); }
+    ['company', 'title', 'email', 'phone', 'website', 'address'].forEach(function (k) { var v = str(r[k]); if (v && !c[k]) c[k] = v; });   // what you typed wins over what was read
+    var nm = str(r.name);
+    if (c.placeholderName) { c.name = nm || str(r.company) || str(r.email) || str(r.phone) || c.name; c.placeholderName = false; c.needsCheck = !nm; }
+    c.needsCheck = !!c.needsCheck || !!r.companyGuessed;
+    var other = str(r.other); if (other) c.note = (c.note ? c.note + '\n' : '') + 'From the card: ' + other;
+    tidyContact(c);
+  }
+  function shrinkPhotos(c) {
+    return Promise.all([c.photo, c.photoBack].map(function (d) { return d ? downsizeBlob(dataToBlob(d), 800, 0.6).then(function (x) { return x || d; }) : Promise.resolve(d); }))
+      .then(function (r) { c.photo = r[0]; c.photoBack = r[1]; });
+  }
+  var queueQuietUntil = 0;
+  function withTimeout(p, ms) { return new Promise(function (res, rej) { var t = setTimeout(function () { rej({ name: 'AbortError' }); }, ms); p.then(function (v) { clearTimeout(t); res(v); }, function (e) { clearTimeout(t); rej(e); }); }); }
+  function processQueue(quiet) {
+    if (!readerUrl()) { if (!quiet) toast('The card reader isn’t set up on this phone.'); return Promise.resolve(0); }
+    if (navigator.onLine === false) { if (!quiet) toast('Still no signal. It will be read when you are online.'); return Promise.resolve(0); }
+    if (queueBusy) { queueAgain = true; if (!quiet) toast('Already reading your saved cards.'); return Promise.resolve(0); }
+    if (quiet && Date.now() < queueQuietUntil) return Promise.resolve(0);          // a recent run hit trouble: wait before the next automatic try
+    var waiting = queuedCards();
+    var todo = waiting.filter(function (c) { return (c.readTries || 0) < 5 && (c.photo || c.photoBack) && c.id !== editingId; });
+    if (!todo.length) { if (!quiet && waiting.some(function (c) { return c.id === editingId; })) toast('Finish or cancel editing that card first.'); return Promise.resolve(0); }
+    queueBusy = true; var done = 0, trouble = false;
+    function finish() {
+      queueBusy = false; if (trouble) queueQuietUntil = Date.now() + 20000;
+      persistContacts(); renderContacts();
+      var left = queuedCards().length;
+      if (done) { toast('Read ' + done + ' saved card' + (done > 1 ? 's' : '') + (left ? ', ' + left + ' still waiting' : '')); syncAll(true); }
+      else if (!quiet) toast(left ? 'Couldn’t read them yet. Will try again.' : 'Nothing is waiting to be read');
+      if (queueAgain) { queueAgain = false; return processQueue(true).then(function (n) { return done + n; }); }
+      return done;
+    }
+    return todo.reduce(function (p, c) {
+      return p.then(function () {
+        if (!c.pendingRead || c.id === editingId) return;            // read already, or opened for editing in the meantime
+        var parts = [];
+        if (c.photo) parts.push({ side: 'front', blob: dataToBlob(c.photo) });
+        if (c.photoBack) parts.push({ side: 'back', blob: dataToBlob(c.photoBack) });
+        var ctl = new AbortController(), timer = setTimeout(function () { ctl.abort(); }, 60000);
+        return withTimeout(readViaEndpoint(parts, false, ctl.signal, false), 90000).then(function (r) {
+          clearTimeout(timer);
+          if (!c.pendingRead || c.id === editingId || contacts.indexOf(c) < 0) return;   // deleted or edited while reading: drop the result
+          if (!usableRead(r)) { trouble = true; c.readTries = (c.readTries || 0) + 1; c.readError = 'nothing found on the photo'; return; }
+          applyReadTo(c, r); c.pendingRead = false; c.readTries = 0; c.readError = ''; c.synced = false; c.updatedAt = new Date().toISOString(); done++;
+          return shrinkPhotos(c);
+        }, function (e) {
+          clearTimeout(timer); trouble = true;
+          if (e && e.code === 'http' && (e.status === 401 || e.status === 403)) { c.readError = 'needs sign-in'; return; }          // not the photo's fault: no try used, and no prompt from the background
+          if (e && (e.code === 'http' || e.code === 'bad_json')) { c.readTries = (c.readTries || 0) + 1; c.readError = e.status ? 'error ' + e.status : 'unreadable answer'; return; }   // the reader answered with an error for this photo
+          c.readError = (e && e.name === 'AbortError') ? 'timed out' : 'no answer';                                              // network trouble: no try used
+        });
+      }).then(null, function () { trouble = true; });                                  // one bad card never stops the others
+    }, Promise.resolve()).then(finish, finish);
+  }
+  window.__queue = { process: processQueue, pending: queuedCards, csv: toCSV, contacts: function () { return contacts; }, sync: syncContact };
+  $('queueBtn').addEventListener('click', queueCard);
+  window.addEventListener('online', function () { setTimeout(function () { processQueue(true); }, 1200); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) processQueue(true); });
 
   /* ---------- capture: form ---------- */
   var fields = { name: 'cName', company: 'cCompany', title: 'cTitle', email: 'cEmail', phone: 'cPhone', website: 'cWeb', address: 'cAddress', event: 'cEvent', note: 'cNote' };
@@ -1657,7 +1948,7 @@ var CONFIG = {
       var idx = contacts.findIndex(function (x) { return x.id === editingId; });
       if (idx >= 0) {
         var prev = contacts[idx];
-        contacts[idx] = Object.assign({}, prev, c, { photo: shots.front ? pick(shots.front).data : null, photoBack: shots.back ? pick(shots.back).data : null, updatedAt: now, synced: false });
+        contacts[idx] = Object.assign({}, prev, c, { pendingRead: false, needsCheck: false, photo: shots.front ? pick(shots.front).data : null, photoBack: shots.back ? pick(shots.back).data : null, updatedAt: now, synced: false });
       }
     } else {
       contacts.unshift(Object.assign({ id: uid(), source: draftSource, photo: shots.front ? pick(shots.front).data : null, photoBack: shots.back ? pick(shots.back).data : null, capturedAt: now, updatedAt: now }, c));
@@ -1674,7 +1965,7 @@ var CONFIG = {
     if (wasEdit) showTab('contacts');
     else window.scrollTo(0, 0);
   });
-  $('cancelEdit').addEventListener('click', function () { resetForm(); showTab('contacts'); });
+  $('cancelEdit').addEventListener('click', function () { resetForm(); showTab('contacts'); setTimeout(function () { processQueue(true); }, 400); });   // a read that was held back while editing can go ahead now
   $('cCompany').addEventListener('input', function () { this.classList.remove('guess'); });
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition, rec = null, dictating = false;
   function setDictating(on) { dictating = on; $('dictateBtn').textContent = on ? 'Stop' : 'Dictate'; $('dictateBtn').classList.toggle('rec', on); }
@@ -1737,14 +2028,42 @@ var CONFIG = {
   /* ---------- duplicates ---------- */
   var forceSave = false;
   function digits(p) { return String(p || '').replace(/\D/g, ''); }
-  function findDuplicate(c) {
-    var em = (c.email || '').toLowerCase(), ph = digits(c.phone);
-    return contacts.find(function (x) {
-      if (em && (x.email || '').toLowerCase() === em) return true;
-      if (ph.length >= 7 && digits(x.phone) === ph) return true;
-      return false;
-    }) || null;
+  /* a duplicate is the same email, the same phone (last 9 digits), or the same person at the same company (name order and small typos ignored) */
+  var dupReason = '';
+  var CO_NOISE = { llc: 1, fze: 1, fzco: 1, fz: 1, ltd: 1, limited: 1, inc: 1, co: 1, company: 1, pjsc: 1, psc: 1, llp: 1, the: 1, and: 1, group: 1 };
+  var FREE_MAIL = /^(gmail|hotmail|outlook|yahoo|icloud|live|proton|protonmail|me|msn|aol)\./;
+  function normName(v) {
+    var t = String(v || '').toLowerCase();
+    try { t = t.normalize('NFKD').replace(/[\u0300-\u036f]/g, ''); } catch (e) {}
+    return t.replace(/[^a-z0-9\u0600-\u06ff ]+/g, ' ').split(/\s+/).filter(Boolean).sort().join(' ');
   }
+  function normCo(v) { return normName(v).split(' ').filter(function (w) { return w && !CO_NOISE[w]; }).join(' '); }
+  function lev(a, b) {
+    if (a === b) return 0;
+    var prev = [], cur, i, j;
+    for (j = 0; j <= b.length; j++) prev[j] = j;
+    for (i = 1; i <= a.length; i++) {
+      cur = [i];
+      for (j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1));
+      prev = cur;
+    }
+    return prev[b.length];
+  }
+  function sameName(a, b) {
+    var x = normName(a), y = normName(b); if (!x || !y) return false; if (x === y) return true;
+    return x.length >= 6 && Math.abs(x.length - y.length) <= 1 && lev(x, y) <= 1;
+  }
+  function mailDomain(e) { var d = String(e || '').toLowerCase().split('@')[1] || ''; return (!d || FREE_MAIL.test(d)) ? '' : d; }
+  function samePhone(a, b) { a = digits(a); b = digits(b); if (a.length < 7 || b.length < 7) return false; return (a.length >= 9 && b.length >= 9) ? a.slice(-9) === b.slice(-9) : a === b; }
+  function findDuplicate(c) {
+    var em = (c.email || '').toLowerCase(), co = normCo(c.company), dom = mailDomain(c.email), k, x;
+    function eligible(x) { return x !== c && !(c.id && x.id === c.id) && !x.pendingRead; }
+    if (em) for (k = 0; k < contacts.length; k++) { x = contacts[k]; if (eligible(x) && (x.email || '').toLowerCase() === em) { dupReason = 'the same email'; return x; } }
+    for (k = 0; k < contacts.length; k++) { x = contacts[k]; if (eligible(x) && samePhone(c.phone, x.phone)) { dupReason = 'the same phone number'; return x; } }
+    for (k = 0; k < contacts.length; k++) { x = contacts[k]; if (eligible(x) && sameName(c.name, x.name) && ((co && co === normCo(x.company)) || (dom && dom === mailDomain(x.email)))) { dupReason = 'the same name and company'; return x; } }
+    return null;
+  }
+  window.__dup = { sameName: sameName, normCo: normCo, samePhone: samePhone, lev: lev };
   function offerDuplicate(existing, fresh) {
     var body = openSheet('Already captured?');
     body.appendChild(el('p', null, 'This looks like someone you already have:'));
@@ -1752,6 +2071,7 @@ var CONFIG = {
     box.appendChild(el('strong', null, existing.name));
     box.appendChild(el('div', 'muted', [existing.company, existing.event].filter(Boolean).join(', ') || existing.email || existing.phone || ''));
     box.appendChild(el('div', 'muted', 'Captured ' + fmt(existing.capturedAt)));
+    box.appendChild(el('div', 'muted', 'Matched by ' + dupReason + '.'));
     body.appendChild(box);
     body.appendChild(el('p', null, 'Update that contact with what you just captured, or save as a new one?'));
     var row = el('div', 'row');
@@ -1791,25 +2111,32 @@ var CONFIG = {
     };
   }
   var syncing = false;
-  function syncContact(c) {
-    if (!saveUrl() || c.synced) return Promise.resolve(false);
+  var syncInflight = {};
+  function syncContact(c, noPrompt) {
+    if (!saveUrl() || c.synced || c.pendingRead) return Promise.resolve(false);
+    if (syncInflight[c.id]) return syncInflight[c.id];   // a second caller (save plus queue) waits for the first instead of posting a duplicate row
+    var run = doSync(c, noPrompt), clear = function () { delete syncInflight[c.id]; };
+    syncInflight[c.id] = run; run.then(clear, clear);
+    return run;
+  }
+  function doSync(c, noPrompt) {
     function send(auth) {
       var row = dataverseRow(c); row.auth = auth;
       return fetch(saveUrl(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(row) });
     }
     return authToken(false).then(send)
-      .then(function (r) { if (r.status === 401) return authToken(true).then(function (auth) { if (!auth) return r; return send(auth); }); return r; })
+      .then(function (r) { if (r.status === 401 && !noPrompt) return authToken(true).then(function (auth) { if (!auth) return r; return send(auth); }); return r; })
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); c.synced = true; c.syncedAt = new Date().toISOString(); c.syncError = ''; return true; })
       .catch(function (e) { c.synced = false; c.syncError = String(e && e.message || e); return false; });
   }
   function syncAll(quiet) {
     if (syncing || !saveUrl()) return;
-    var pending = contacts.filter(function (c) { return !c.synced; });
+    var pending = contacts.filter(function (c) { return !c.synced && !c.pendingRead; });
     if (!pending.length) { if (!quiet) toast('Everything is already in Dataverse'); return; }
     syncing = true; if (!quiet) toast('Sending ' + pending.length + ' to Dataverse');
-    pending.reduce(function (p, c) { return p.then(function () { return syncContact(c); }); }, Promise.resolve()).then(function () {
+    pending.reduce(function (p, c) { return p.then(function () { return syncContact(c, !!quiet); }); }, Promise.resolve()).then(function () {
       syncing = false; persistContacts(); renderContacts();
-      var left = contacts.filter(function (c) { return !c.synced; }).length;
+      var left = contacts.filter(function (c) { return !c.synced && !c.pendingRead; }).length;
       if (!quiet || !left) toast(left ? left + ' still waiting. Check the connection and try again.' : 'All contacts are in Dataverse');
     });
   }
@@ -1824,7 +2151,7 @@ var CONFIG = {
     });
     $('cCount').textContent = contacts.length ? (q ? shown.length + ' of ' + contacts.length : contacts.length + (contacts.length === 1 ? ' saved' : ' saved')) : '';
     $('cEmpty').hidden = contacts.length > 0;
-    $('syncRow').hidden = !saveUrl() || !contacts.some(function (c) { return !c.synced; });
+    $('syncRow').hidden = !saveUrl() || !contacts.some(function (c) { return !c.synced && !c.pendingRead; });
     if (contacts.length && !shown.length) list.appendChild(el('li', 'muted', 'No matches.'));
     shown.forEach(function (c) {
       var li = el('li'), b = el('button', 'crow'); b.type = 'button';
@@ -1835,7 +2162,9 @@ var CONFIG = {
       svg.appendChild(path); svg.appendChild(txt);
       var main = el('div', 'cmain'); main.appendChild(el('div', 'cname', c.name));
       main.appendChild(el('div', 'csub', [c.company, c.event].filter(Boolean).join(', ') || c.email || c.phone || ''));
-      if (saveUrl()) main.appendChild(el('div', 'csub ' + (c.synced ? 'ok' : 'warn'), c.synced ? 'In Dataverse' : 'Not sent to Dataverse yet'));
+      if (c.pendingRead) main.appendChild(el('div', 'csub warn', 'Waiting to be read' + ((c.readTries || 0) >= 5 ? ' (tap to retry)' : c.readError === 'needs sign-in' ? ' (sign in again)' : navigator.onLine === false ? ' (no signal)' : '')));
+      else if (c.needsCheck) main.appendChild(el('div', 'csub warn', 'Check the details'));
+      else if (saveUrl()) main.appendChild(el('div', 'csub ' + (c.synced ? 'ok' : 'warn'), c.synced ? 'In Dataverse' : 'Not sent to Dataverse yet'));
       b.appendChild(svg); b.appendChild(main); b.appendChild(el('div', 'cwhen', fmtShort(c.capturedAt)));
       b.addEventListener('click', function () { openContact(c.id); });
       li.appendChild(b); list.appendChild(li);
@@ -1858,6 +2187,7 @@ var CONFIG = {
     add('Address', c.address);
     add('Met at', c.event); add('Note', c.note);
     add('Consent', c.consent ? 'Agreed to be contacted' : 'Not recorded');
+    if (c.pendingRead) add('Reading', 'Waiting' + (c.readError ? ' (last try: ' + c.readError + ')' : ''));
     if (saveUrl()) add('Dataverse', c.synced ? 'Saved ' + fmt(c.syncedAt) : 'Not sent yet' + (c.syncError ? ' (' + c.syncError + ')' : ''));
     add('Captured', fmt(c.capturedAt) + (c.source === 'qr' ? ', from a QR code' : c.source === 'photo' ? ', from a card photo' : c.source === 'import' ? ', imported' : ''));
     body.appendChild(dl);
@@ -1872,6 +2202,11 @@ var CONFIG = {
       $('editingName').textContent = c.name; $('editingBanner').hidden = false; $('cSave').textContent = 'Save changes';
       showTab('capture');
     });
+    if (c.pendingRead) {
+      var rn = el('button', 'btn btn-primary', 'Read now'); rn.type = 'button';
+      rn.addEventListener('click', function () { c.readTries = 0; persistContacts(); closeSheet(); processQueue(false); });
+      row.appendChild(rn);
+    }
     if (msReady()) {
       var ol = el('button', 'btn btn-secondary', 'Add to my Outlook contacts'); ol.type = 'button';
       ol.addEventListener('click', function () { ol.disabled = true; ol.textContent = 'Adding\u2026'; addToOutlook(c).then(function () { ol.textContent = 'In Outlook'; }, function () { ol.disabled = false; ol.textContent = 'Add to my Outlook contacts'; }); });
@@ -1888,10 +2223,12 @@ var CONFIG = {
 
   /* ---------- export & import ---------- */
   var COLS = [['Name', 'name'], ['Company', 'company'], ['Title', 'title'], ['Email', 'email'], ['Phone', 'phone'], ['Website', 'website'], ['Address', 'address'], ['Met at', 'event'], ['Note', 'note'], ['Consent', 'consent'], ['Captured at', 'capturedAt'], ['Source', 'source']];
-  function csvCell(v) { var s = v == null ? '' : String(v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  /* a cell that starts with = @ or a sign followed by anything but a plain number is defanged so a spreadsheet cannot run it as a formula (lead names come from outside) */
+  function csvCell(v) { var s = v == null ? '' : String(v); if (/^[=@\t\r]/.test(s) || (/^[+-]/.test(s) && !/^[+-]?[\d\s().-]+$/.test(s))) s = "'" + s; return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
   function toCSV() {
     var rows = [COLS.map(function (c) { return c[0]; }).join(',')];
     contacts.forEach(function (c) {
+      if (c.pendingRead) return;   // placeholder rows wait to be read; they are in the JSON export but not the spreadsheet
       rows.push(COLS.map(function (col) { var v = c[col[1]]; if (col[1] === 'consent') v = v ? 'Yes' : 'No'; return csvCell(v); }).join(','));
     });
     return '\uFEFF' + rows.join('\r\n');
@@ -2116,12 +2453,14 @@ var CONFIG = {
       var m = /var APP_VERSION = '([^']+)'/.exec(html || '');
       if (!m || m[1] === APP_VERSION) return;
       if (store.get('alc_reloaded_for', '') === m[1]) return;
-      store.set('alc_reloaded_for', m[1]);
+      if (!store.set('alc_reloaded_for', m[1])) return;   // cannot remember it (storage full): do not reload on every check
       toast('Updating to v' + m[1]);
       setTimeout(function () { location.reload(); }, 900);
     }).catch(function () {});
   }
   setTimeout(checkForUpdate, 2000);
+  /* keeps the app page so it opens with no signal (sw.js is network first, so a new version still wins when there is signal) */
+  try { if ('serviceWorker' in navigator && /^https?:/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(function () {}); } catch (e) {}
 
   /* ---------- start ---------- */
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {}); } catch (e) {}
@@ -2130,6 +2469,8 @@ var CONFIG = {
   offerSetupLink();
   setTimeout(function () { syncAll(true); }, 1500);
   initLeads();
+  setTimeout(function () { processQueue(true); }, 4000);
+  setInterval(function () { if (!document.hidden && queuedCards().length) processQueue(true); }, 60000);
   enforceSignIn();
   $('cEvent').value = settings.event || '';
   renderMyCard();

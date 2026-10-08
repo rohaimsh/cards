@@ -40,6 +40,8 @@ a{color:inherit}
 
 .bar{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:4px 2px 14px;min-height:44px}
 .co{font-size:14px;color:var(--ink2);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand img{height:30px;max-width:120px;object-fit:contain;flex:none}
 .pill{font-size:12px;font-weight:500;border-radius:999px;padding:3px 10px;border:1px solid var(--line);background:var(--paper);color:var(--ink2)}
 .pill.demo{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .lang{font:inherit;font-size:14px;font-weight:500;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:6px 14px;min-height:36px;cursor:pointer}
@@ -72,7 +74,7 @@ a{color:inherit}
   background:var(--paper);border:1px solid var(--line);border-radius:12px;font-size:14px;font-weight:500;min-height:64px;
 }
 .tile svg,.ico svg{width:22px;height:22px;display:block}
-.tile svg{color:var(--card)}
+.tile svg{color:var(--icon,var(--card))}
 @media (prefers-color-scheme:dark){.tile svg{color:var(--accent)}}
 
 /* details */
@@ -99,7 +101,7 @@ textarea{min-height:88px;resize:vertical}
 .field.bad input,.field.bad textarea{border-color:var(--err)}
 .err{color:var(--err);font-size:14px;margin-top:6px}
 .consent{display:flex;gap:12px;align-items:flex-start;margin:6px 0 18px;font-size:14px;color:var(--ink2);font-weight:400}
-.consent input{width:22px;height:22px;min-height:22px;margin:1px 0 0;flex:none;accent-color:var(--card)}
+.consent input{width:22px;height:22px;min-height:22px;margin:1px 0 0;flex:none;accent-color:var(--icon,var(--card))}
 .hp{position:absolute;inset-inline-start:-9999px;width:1px;height:1px;overflow:hidden}
 .how{margin-top:14px;font-size:13px;color:var(--ink2)}
 .how summary{cursor:pointer}
@@ -137,7 +139,7 @@ textarea{min-height:88px;resize:vertical}
 <body>
 <div class="page">
   <header class="bar">
-    <span class="co" id="co"></span>
+    <span class="brand"><img id="logo" alt="" hidden><span class="co" id="co"></span></span>
     <span class="bar-end">
       <span class="pill" id="pill" hidden></span>
       <button class="lang" id="langBtn" type="button">العربية</button>
@@ -229,14 +231,20 @@ textarea{min-height:88px;resize:vertical}
    leadUrl   Power Automate "Card page lead" flow URL. Where the visitor form is sent. Empty = the form is hidden (demo still shows it).
    privacyUrl  Link to the privacy notice. Empty = a short default text is shown instead.
    allowLinkCards  true = links that carry the card inside the link (#z=, #d=) are shown, marked "not verified". Set false once Dataverse cards are live.
+   brand     Company colours for the card page, for example {card: '#0E3B43', card2: '#1A525C', accent: '#C8963E'}. null = the default teal and gold. Six-digit hex only.
+   noteMax   Longest note a visitor can leave. The Card Leads note column was widened to 500 on Oct 8 (tools/widen_columns.py --apply --write-widths); if you change its width again, rebuild the flows and set the new width here (the tool prints it).
+   logo      Company logo as a data URI (PNG, SVG, JPEG or WebP, under 30 KB). Empty = no logo. tools/logo_to_datauri.py makes one from an image file.
    quirks    true = playful Great Teacher Onizuka wording and sample card (English only). Set false for plain professional wording. */
-var PAGE_VERSION = '2.7';
+var PAGE_VERSION = '2.8';
 var CONFIG = {
   cardUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/26/workflows/3cae8d3bf3a54d079a1bbe95bda554f6/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=1NFydb7KaYRQJZyj9UWp53kJkryIkDRn1I-GErgmOPQ',
   vcardUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/00/workflows/a58f4d59c3b448fab87803caf8179efe/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=5klYhy4Rf5XEa8N8CRIBc0jEjrgWvzryj5kP5UGJ9z4',    /* Power Automate "GCS vCard" flow (GET). Phones open this as a real .vcf and add the contact. */
   leadUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/26/workflows/3cae8d3bf3a54d079a1bbe95bda554f6/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=1NFydb7KaYRQJZyj9UWp53kJkryIkDRn1I-GErgmOPQ',
   privacyUrl: '',
   allowLinkCards: true,
+  noteMax: 500,
+  brand: null,
+  logo: '',
   quirks: true
 };
 
@@ -256,7 +264,7 @@ var QUIRKS = {
     phCompany: 'your school, gang or company', phNote: 'What do you need from the Great Teacher?'
   },
   demo: {
-    f: 'Eikichi', l: 'Onizuka', a: 'إيكيتشي أونيزوكا', t: 'Great Teacher (self-appointed)', o: 'Holy Forest Academy', d: 'Class 3-4, the troubled one',
+    f: 'Eikichi', l: 'Onizuka', a: 'إيكيتشي أونيزوكا', t: 'Great Teacher (self-appointed)', at: 'المعلم العظيم (بقرار ذاتي)', o: 'Holy Forest Academy', ao: 'أكاديمية هولي فورست', d: 'Class 3-4, the troubled one',
     m: '+81 90 0000 0000', p: '+81 3 0000 0000', e: 'onizuka@greatteacher.example', u: 'https://greatteacher.example',
     i: 'https://www.linkedin.com/in/great-teacher-onizuka', s: 'Somewhere in Tokyo, probably on a motorbike'
   }
@@ -317,7 +325,7 @@ var QUIRKS = {
   }
 
   var DEMO = {
-    f: 'Layla', l: 'Haddad', a: 'ليلى حداد', t: 'Head of Partnerships', o: 'Example Trading LLC', d: 'Partnerships',
+    f: 'Layla', l: 'Haddad', a: 'ليلى حداد', t: 'Head of Partnerships', at: 'رئيسة الشراكات', o: 'Example Trading LLC', ao: 'شركة المثال للتجارة', d: 'Partnerships',
     m: '+971 50 123 4567', p: '+971 4 333 4444', e: 'layla.haddad@example.com', u: 'https://example.com',
     i: 'https://www.linkedin.com/in/example', s: 'Office 3, Marina Plaza, Dubai, United Arab Emirates'
   };
@@ -344,6 +352,7 @@ var QUIRKS = {
     return {
       first: s(pick(r, ['f', 'first', 'firstName']), 60), last: s(pick(r, ['l', 'last', 'lastName']), 60), ar: s(pick(r, ['a', 'ar', 'nameAr']), 80),
       title: s(pick(r, ['t', 'title', 'jobTitle']), 100), company: s(pick(r, ['o', 'company', 'companyName']), 100), dept: s(pick(r, ['d', 'dept', 'department']), 80),
+      titleAr: s(pick(r, ['at', 'titleAr']), 100), companyAr: s(pick(r, ['ao', 'companyAr']), 100),
       mobile: /\d/.test(mobile) ? mobile : '', office: /\d/.test(office) ? office : '',
       email: toMail(pick(r, ['e', 'email'])), web: web, linkedin: li, address: s(pick(r, ['s', 'address']), 200), photo: photo
     };
@@ -401,11 +410,13 @@ var QUIRKS = {
   }
   function renderCard() {
     var c = state.card, name = fullName(c);
-    $('co').textContent = c.company;
-    $('name').textContent = name;
-    var alt = $('alt'); alt.textContent = c.ar && c.ar !== name ? c.ar : ''; alt.hidden = !alt.textContent;
-    $('role').textContent = c.title; $('role').hidden = !c.title;
-    $('org').textContent = [c.company, c.dept].filter(Boolean).join(', '); $('org').hidden = !$('org').textContent;
+    var ar = state.lang === 'ar', arFirst = ar && !!c.ar, title = (ar && c.titleAr) || c.title, company = (ar && c.companyAr) || c.company;
+    $('co').textContent = company;
+    $('name').textContent = arFirst ? c.ar : name;
+    var alt = $('alt'); alt.textContent = arFirst ? (c.ar !== name ? name : '') : (c.ar && c.ar !== name ? c.ar : ''); alt.hidden = !alt.textContent;
+    alt.lang = arFirst ? 'en' : 'ar';
+    $('role').textContent = title; $('role').hidden = !title;
+    $('org').textContent = [company, c.dept].filter(Boolean).join(ar ? '\u060c ' : ', '); $('org').hidden = !$('org').textContent;
     var av = $('avatar'), old = av.querySelector('image'); if (old) old.remove();
     $('initials').textContent = c.photo ? '' : initials(c);
     if (c.photo) {
@@ -413,6 +424,8 @@ var QUIRKS = {
       im.setAttribute('href', c.photo); im.setAttribute('width', '76'); im.setAttribute('height', '92');
       im.setAttribute('preserveAspectRatio', 'xMidYMid slice'); im.setAttribute('clip-path', 'url(#arch)'); av.appendChild(im);
     }
+    var lg = $('logo'), lgv = String(CONFIG.logo || '');
+    if (/^data:image\/(png|jpeg|webp|svg\+xml);base64,[A-Za-z0-9+\/=]+$/.test(lgv) && lgv.length <= 42000) { lg.src = lgv; lg.hidden = false; } else lg.hidden = true;
     var tiles = $('tiles'); tiles.innerHTML = '';
     var dial = digits(c.mobile || c.office);
     if (dial) tiles.appendChild(tileEl('phone', t('call'), 'tel:' + dial));
@@ -528,7 +541,7 @@ var QUIRKS = {
   }
   function onSubmit(ev) {
     ev.preventDefault();
-    var f = $('form').elements, name = s(f.name.value, 100), email = s(f.email.value, 100), phone = s(f.phone.value, 40), company = s(f.company.value, 100), note = s(f.note.value, 500);
+    var f = $('form').elements, name = s(f.name.value, 100), email = s(f.email.value, 100), phone = s(f.phone.value, 40), company = s(f.company.value, 100), note = s(f.note.value, CONFIG.noteMax);
     var bad = false, em = '';
     setErr('fName', name ? '' : t('errName')); bad = bad || !name;
     if (!email && !phone) em = t('errContact'); else if (email && !toMail(email)) em = t('errEmail');
@@ -572,7 +585,34 @@ var QUIRKS = {
       .then(function (r) { clearTimeout(timer); return r.ok ? r.json() : null; })
       .then(function (j) { var c = j && (j.card || j); return c && (c.name || c.first || c.f) ? { card: c, mode: 'server' } : null; });
   }
+  /* company colours (CONFIG.brand): only plain six-digit hex values are accepted */
+  function applyBrand(B) {
+    if (!B || typeof B !== 'object') return false;
+    var hex = /^#[0-9a-fA-F]{6}$/, root = document.documentElement.style, did = false;
+    function rgb(h) { return [parseInt(h.substr(1, 2), 16), parseInt(h.substr(3, 2), 16), parseInt(h.substr(5, 2), 16)]; }
+    function hexOf(a) { return '#' + a.map(function (v) { v = Math.max(0, Math.min(255, Math.round(v))); return (v < 16 ? '0' : '') + v.toString(16); }).join(''); }
+    function lum(c) { var v = c.map(function (x) { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; }
+    function ratio(a, b) { var l1 = lum(a), l2 = lum(b); return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05); }
+    function blend(a, b, t) { return a.map(function (v, i) { return v * (1 - t) + b[i] * t; }); }
+    function pickInk(bg, light, dark) { return ratio(rgb(light), bg) >= ratio(rgb(dark), bg) ? light : dark; }   // whichever text colour reads better on this background
+    if (hex.test(B.card)) {
+      var cc = rgb(B.card), ink = pickInk(cc, '#F2F6F4', '#14262B'), muted = blend(rgb(ink), cc, 0.3);
+      if (ratio(muted, cc) < 4.5) muted = rgb(ink);
+      root.setProperty('--card', B.card); root.setProperty('--card-ink', ink); root.setProperty('--card-muted', hexOf(muted));
+      root.setProperty('--icon', ratio(cc, [255, 255, 255]) >= 4.5 ? B.card : '#14262B');   // icons sit on white tiles: a light or mid card colour would nearly vanish
+      did = true;
+    }
+    if (hex.test(B.card2)) { root.setProperty('--card2', B.card2); did = true; }
+    if (hex.test(B.accent)) {
+      var c = rgb(B.accent);
+      root.setProperty('--accent', B.accent); root.setProperty('--accent-hover', hexOf(c.map(function (v) { return v * 0.88; })));
+      root.setProperty('--accent-ink', pickInk(c, '#FFFFFF', '#1B1400')); did = true;
+    }
+    return did;
+  }
+  window.__applyBrand = applyBrand;
   function start() {
+    applyBrand(CONFIG.brand);
     var q = new URLSearchParams(location.search), id = q.get('c') || '';
     var want = (q.get('lang') || '').toLowerCase(), saved = '';
     try { saved = localStorage.getItem('gcs_card_lang') || ''; } catch (e) {}
@@ -587,6 +627,7 @@ var QUIRKS = {
   $('langBtn').addEventListener('click', function () { setLang(state.lang === 'en' ? 'ar' : 'en', true); });
   $('saveBtn').addEventListener('click', saveContact);
   $('saveBtn2').addEventListener('click', saveContact);
+  $('iNote').maxLength = CONFIG.noteMax;
   $('noteBtn').addEventListener('click', function () { this.hidden = true; $('noteWrap').hidden = false; $('iNote').focus(); });
   $('form').addEventListener('submit', onSubmit);
   /* scanning a second QR in the same tab only changes the part after #, so reload to show the new card */
