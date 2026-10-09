@@ -208,6 +208,7 @@ body.locked .tabbar{display:none}
   color:var(--ink-2);display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;cursor:pointer;
 }
 .tab svg{width:24px;height:24px}
+a.tab{text-decoration:none}
 .tab.active{color:var(--tab-active);font-weight:500}
 
 /* scanner */
@@ -252,15 +253,19 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
 }
 .toast.show{opacity:1}
 @media (prefers-reduced-motion:reduce){ *{transition:none !important;animation:none !important} }
-.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:10px}
-.kpi{border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;background:var(--surface)}
-.kpi b{display:block;font-size:26px;font-weight:600;line-height:1.1}
-.kpi span{font-size:13px;color:var(--ink-2)}
-.bars{display:block;width:100%;height:auto;margin-top:8px}
-.bars rect{fill:var(--accent)} .bars text{fill:var(--ink-2);font-size:9px;font-family:inherit}
-.rank{list-style:none;padding:0;margin:6px 0 0;font-size:14px}
-.rank li{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--line)}
-.rank li span:last-child{color:var(--ink-2)}
+.lock{text-align:center;padding:40px 20px;min-height:62vh;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.lock h1{margin:0 0 8px}
+.lock .sub{margin:0 auto 22px}
+.lock .btn{max-width:340px}
+.lock .hint{margin-top:14px;margin-bottom:0}
+.lock-mark{width:52px;height:63px;margin-bottom:20px}
+.grp{margin:20px 2px 0;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+details.opt{margin-top:14px;border-top:1px solid var(--line);padding-top:6px}
+details.opt>summary{cursor:pointer;font-weight:500;list-style:none;display:flex;justify-content:space-between;align-items:center;padding:8px 0}
+details.opt>summary::-webkit-details-marker{display:none}
+details.opt>summary::after{content:'+';font-size:22px;line-height:1;color:var(--ink-2)}
+details.opt[open]>summary::after{content:'\2212'}
+details.opt>summary small{color:var(--ink-2);font-weight:400;margin-left:6px;margin-right:auto}
 .bgprev{width:100%;border-radius:var(--radius);display:block;margin-top:12px;border:1px solid var(--line)}
 .toggle-row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px;font-size:14px}
 </style>
@@ -308,19 +313,27 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
           <button type="button" data-mode="contact">Saves contact</button>
         </div>
       </div>
-      <div class="row" id="cardActions" hidden>
-        <button class="btn btn-secondary" id="editCardBtn" type="button">Edit my card</button>
-        <button class="btn btn-primary" id="publishBtn" type="button" hidden>Publish my card</button>
-        <button class="btn btn-secondary" id="previewPageBtn" type="button">Preview my page</button>
-        <button class="btn btn-secondary" id="shareLinkBtn" type="button" hidden>Share my page</button>
-        <button class="btn btn-secondary" id="copyLinkBtn" type="button">Copy page link</button>
-        <button class="btn btn-secondary" id="qrDownloadBtn" type="button">Download QR image</button>
-        <button class="btn btn-secondary" id="sigBtn" type="button">Email signature</button>
-        <button class="btn btn-secondary" id="bgBtn" type="button">Meeting background</button>
-        <button class="btn btn-secondary" id="pagePhotoBtn" type="button" hidden>Photo on my page: off</button>
-        <button class="btn btn-secondary" id="nfcBtn" type="button">NFC tag</button>
-        <button class="btn btn-secondary" id="copyCardBtn" type="button">Copy details</button>
-        <button class="btn btn-secondary" id="msRefresh" type="button" hidden>Refresh from Microsoft</button>
+      <div id="cardActions" hidden>
+        <div class="row">
+          <button class="btn btn-secondary" id="editCardBtn" type="button">Edit my card</button>
+          <button class="btn btn-primary" id="publishBtn" type="button" hidden>Publish my card</button>
+          <button class="btn btn-secondary" id="msRefresh" type="button" hidden>Refresh from Microsoft</button>
+        </div>
+        <p class="grp">Share</p>
+        <div class="row">
+          <button class="btn btn-secondary" id="previewPageBtn" type="button">Preview my page</button>
+          <button class="btn btn-secondary" id="shareLinkBtn" type="button" hidden>Share my page</button>
+          <button class="btn btn-secondary" id="copyLinkBtn" type="button">Copy page link</button>
+          <button class="btn btn-secondary" id="qrDownloadBtn" type="button">Download QR image</button>
+          <button class="btn btn-secondary" id="pagePhotoBtn" type="button" hidden>Photo on my page: off</button>
+        </div>
+        <p class="grp">Use your card</p>
+        <div class="row">
+          <button class="btn btn-secondary" id="sigBtn" type="button">Email signature</button>
+          <button class="btn btn-secondary" id="bgBtn" type="button">Meeting background</button>
+          <button class="btn btn-secondary" id="nfcBtn" type="button">NFC tag</button>
+          <button class="btn btn-secondary" id="copyCardBtn" type="button">Copy details</button>
+        </div>
       </div>
     </section>
 
@@ -444,37 +457,16 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
         <div class="row" id="syncRow" hidden>
           <button class="btn btn-primary" id="syncBtn" type="button">Send to Dataverse now</button>
         </div>
-        <p class="hint" style="margin-top:14px"><button class="link-btn" id="readerSettings" type="button">Card reader settings</button> &nbsp;&middot;&nbsp; <button class="link-btn" id="signOutPhone" type="button" hidden>Sign out of this phone</button></p>
+        <p class="hint" style="margin-top:14px"><button class="link-btn" id="readerSettings" type="button">Settings</button> &nbsp;&middot;&nbsp; <button class="link-btn" id="signOutPhone" type="button" hidden>Sign out of this phone</button></p>
       </section>
-    </section>
-    <section class="panel" id="panel-admin" hidden>
-      <div class="list-head"><h2>Admin</h2><span class="count" id="adminCount"></span></div>
-      <p class="sub">Everyone's published cards, the leads waiting for review, and recent captures. Only people on the admin list see this.</p>
-      <div class="row"><button class="btn btn-secondary" id="adminRefresh" type="button">Refresh</button></div>
-      <section id="insights" hidden>
-        <h3 class="h3">Team insights</h3>
-        <div class="kpis" id="kpis"></div>
-        <h3 class="h3">Contacts captured per day (last 14 days)</h3>
-        <div id="barsBox"></div>
-        <h3 class="h3">Who is capturing (last 30 days)</h3>
-        <ul class="rank" id="rankWho"></ul>
-        <h3 class="h3">Companies met (last 30 days)</h3>
-        <ul class="rank" id="rankCo"></ul>
-        <p class="hint" id="insightNote"></p>
-      </section>
-      <h3 class="h3">Published cards</h3>
-      <ul class="clist" id="adminCards"></ul>
-      <h3 class="h3">Leads waiting</h3>
-      <ul class="clist" id="adminLeads"></ul>
-      <h3 class="h3">Recent captures</h3>
-      <ul class="clist" id="adminContacts"></ul>
     </section>
     <section class="panel" id="panel-lock" hidden>
-      <section class="section" style="text-align:center;padding:40px 20px">
-        <h1 style="margin:0 0 8px">Sign in to continue</h1>
-        <p class="sub" style="margin:0 auto 20px">GCS is for staff only. Sign in with your work account once; the app remembers you on this phone.</p>
+      <section class="section lock">
+        <svg class="lock-mark" viewBox="0 0 76 92" aria-hidden="true"><path d="M38 0 C52 8 76 26 76 50 L76 92 L0 92 L0 50 C0 26 24 8 38 0 Z" fill="var(--accent)"/></svg>
+        <h1>Sign in to continue</h1>
+        <p class="sub">GCS is for staff only. Sign in with your work account once; the app remembers you on this phone.</p>
         <button class="btn btn-primary btn-block" id="lockSignIn" type="button">Sign in with Microsoft</button>
-        <p class="hint" id="lockMsg" style="margin-top:14px"></p>
+        <p class="hint" id="lockMsg"></p>
       </section>
     </section>
   </main>
@@ -493,10 +485,10 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0M16 4a3.5 3.5 0 0 1 0 7M21 20a6 6 0 0 0-4-5.6"/></svg>
     Contacts
   </button>
-  <button class="tab admin" data-tab="admin" type="button">
+  <a class="tab admin" href="admin.html">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/></svg>
     Admin
-  </button>
+  </a>
 </nav>
 
 <div class="scanner" id="scanner" hidden>
@@ -531,31 +523,37 @@ textarea.export{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,C
       <label>First name<input name="first" type="text" autocomplete="given-name"></label>
       <label>Last name<input name="last" type="text" autocomplete="family-name"></label>
     </div>
-    <label>Name in Arabic <small>(optional)</small><input name="ar" type="text" lang="ar" dir="rtl"></label>
-    <label>Job title <small>(optional)</small><input name="title" type="text" autocomplete="organization-title"></label>
-    <label>Job title in Arabic <small>(optional)</small><input name="titleAr" type="text" lang="ar" dir="rtl"></label>
-    <label>Company <small>(optional)</small><input name="company" type="text" autocomplete="organization"></label>
-    <label>Company in Arabic <small>(optional)</small><input name="companyAr" type="text" lang="ar" dir="rtl"></label>
     <label>Mobile<input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+971 ..."></label>
     <label>Email<input name="email" type="email" inputmode="email" autocomplete="email"></label>
-    <label>Website or LinkedIn <small>(optional)</small><input name="web" type="url" inputmode="url" autocomplete="url"></label>
-    <div class="grid2">
-      <label>Department <small>(optional)</small><input name="department" type="text"></label>
-      <label>Office <small>(optional)</small><input name="office" type="text"></label>
-    </div>
-    <div class="grid2">
-      <label>Office phone <small>(optional)</small><input name="officePhone" type="tel" inputmode="tel"></label>
-      <label>Fax <small>(optional)</small><input name="fax" type="tel" inputmode="tel"></label>
-    </div>
-    <label>Street address <small>(optional)</small><input name="street" type="text" autocomplete="street-address"></label>
-    <div class="grid2">
-      <label>City <small>(optional)</small><input name="city" type="text" autocomplete="address-level2"></label>
-      <label>State or province <small>(optional)</small><input name="state" type="text" autocomplete="address-level1"></label>
-    </div>
-    <div class="grid2">
-      <label>Postal code <small>(optional)</small><input name="postal" type="text" autocomplete="postal-code"></label>
-      <label>Country <small>(optional)</small><input name="country" type="text" autocomplete="country-name"></label>
-    </div>
+    <label>Job title <small>(optional)</small><input name="title" type="text" autocomplete="organization-title"></label>
+    <label>Company <small>(optional)</small><input name="company" type="text" autocomplete="organization"></label>
+    <details class="opt">
+      <summary>More details <small>(optional)</small></summary>
+      <label>Website or LinkedIn <small>(optional)</small><input name="web" type="url" inputmode="url" autocomplete="url"></label>
+      <div class="grid2">
+        <label>Department <small>(optional)</small><input name="department" type="text"></label>
+        <label>Office <small>(optional)</small><input name="office" type="text"></label>
+      </div>
+      <div class="grid2">
+        <label>Office phone <small>(optional)</small><input name="officePhone" type="tel" inputmode="tel"></label>
+        <label>Fax <small>(optional)</small><input name="fax" type="tel" inputmode="tel"></label>
+      </div>
+      <label>Street address <small>(optional)</small><input name="street" type="text" autocomplete="street-address"></label>
+      <div class="grid2">
+        <label>City <small>(optional)</small><input name="city" type="text" autocomplete="address-level2"></label>
+        <label>State or province <small>(optional)</small><input name="state" type="text" autocomplete="address-level1"></label>
+      </div>
+      <div class="grid2">
+        <label>Postal code <small>(optional)</small><input name="postal" type="text" autocomplete="postal-code"></label>
+        <label>Country <small>(optional)</small><input name="country" type="text" autocomplete="country-name"></label>
+      </div>
+    </details>
+    <details class="opt">
+      <summary>Arabic version <small>(optional)</small></summary>
+      <label>Name in Arabic<input name="ar" type="text" lang="ar" dir="rtl"></label>
+      <label>Job title in Arabic<input name="titleAr" type="text" lang="ar" dir="rtl"></label>
+      <label>Company in Arabic<input name="companyAr" type="text" lang="ar" dir="rtl"></label>
+    </details>
     <p class="error" hidden></p>
     <button class="btn btn-primary btn-block" type="submit">Save my card</button>
   </form>
@@ -648,9 +646,11 @@ function(e){return e.hasOwnProperty("authorization_endpoint")&&e.hasOwnProperty(
    address out of this file, which matters if the file is hosted publicly.
    readerUrl     Endpoint that reads card photos (Power Automate flow URL or reader worker URL).
    readerToken   Optional shared secret the endpoint checks.
+   adminUrl      Link of the GCS Admin flow. The app only asks it "am I an admin?" to show a link to admin.html; the console itself is admin.html.
    readerCareful true only for the Claude worker: shows "Read again carefully" (slower, more accurate model). */
-var APP_VERSION = '2.8';
+var APP_VERSION = '2.9';
 var CHANGELOG = [
+  ['2.9', 'Oct 9, 2026', 'The admin side moved to its own page: people on the admin list see an Admin link here that opens the admin console (team insights, cards, leads, captures, clean-up). Tidier screens too: plain wording, Settings no longer shows connection addresses, the set-up form asks for the essentials first, and My card groups its buttons under Share and Use your card.'],
   ['2.8', 'Oct 8, 2026', 'Read later: photos taken without signal are saved and read when you are back online. Better duplicate matching: same phone, or the same name at the same company. Team insights and counters on the Admin tab. Meeting background for Teams and Zoom with your QR. Optional photo on your published page. Arabic job title and company on the card page. The app now opens with no signal for up to 14 days after your last sign-in. Contacts > Sign out of this phone. Clearer message when publishing fails.'],
   ['2.7', 'Oct 5, 2026', 'Card page: visitor details go to the new GCS Get card flow (the old lead flow is retired). The card page now shows its version in the footer.'],
   ['2.6', 'Oct 5, 2026', 'Switched to the secured card reader and Dataverse saving flows (sign-in checked). The card page saves contacts through a real .vcf link on phones.'],
@@ -677,7 +677,8 @@ var CONFIG = {
   readerCareful: false,
   saveUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/02/workflows/406b0e0123f24bd1a2336b73b64aab13/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=0Qac5qN3UOwhEb07O--gffgF1Hj-NbzpiV6qyNolC1Y',
   publishUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/08/workflows/96f7caa1d6b5441591a6f0b8a9d64796/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=cRhnPJvAQrIlgS92tM04VEcEhR4b8DtQI1iSI9z5KIo',   /* Power Automate 'Publish my card' flow. Checks the Microsoft sign-in before saving. */
-  quirks: true,     /* true = playful Great Teacher Onizuka wording in a few places. false = plain wording. */
+  adminUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/11/workflows/cc6e22e8e4e2461e93bdf68d491970d4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=g1-6GnhhJPCD4NijqvFnxp0hmxk4Rlxn21G2Y39_-As',     /* link of the GCS Admin flow (the admin console, admin.html). Empty = the app shows no Admin link. tools/set_flow_url.py fills it in after the flow package is imported. */
+  quirks: false,    /* true = playful Great Teacher Onizuka wording in a few places. false = plain wording. */
   requireSignIn: true, /* true = the app asks for the Microsoft work sign-in before anything else (needs msClientId). */
   /* Microsoft sign-in (fills My card from the work account). Paste the values from the
      Entra app registration "GCS Card Scanner". Leave empty to hide the sign-in button. */
@@ -739,12 +740,11 @@ var CONFIG = {
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeSheet(); stopScanner(); } });
 
   /* ---------- tabs ---------- */
-  var tabs = document.querySelectorAll('.tab');
+  var tabs = document.querySelectorAll('.tab[data-tab]');
   function showTab(name) {
-    ['card', 'capture', 'contacts', 'admin'].forEach(function (n) { $('panel-' + n).hidden = n !== name; });
+    ['card', 'capture', 'contacts'].forEach(function (n) { $('panel-' + n).hidden = n !== name; });
     for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle('active', tabs[i].dataset.tab === name);
     if (name === 'contacts') renderContacts();
-    if (name === 'admin') loadAdmin(false);
     window.scrollTo(0, 0);
   }
   for (var i = 0; i < tabs.length; i++) tabs[i].addEventListener('click', function (e) { showTab(e.currentTarget.dataset.tab); });
@@ -1017,83 +1017,22 @@ var CONFIG = {
   $('leadRefresh').addEventListener('click', function () { refreshLeads(true); });
   function initLeads() { renderLeads(); setTimeout(function () { refreshLeads(false); }, 2500); }
 
-  /* ---------- admin console (R38, R39): the flow decides who is an admin ---------- */
-  var adminData = null, adminChecked = false;
-  function adminRow(title, sub, onDelete, deleteLabel) {
-    var li = el('li'); li.appendChild(el('div', 'cname', title)); if (sub) li.appendChild(el('div', 'csub', sub));
-    if (onDelete) { var acts = el('div', 'lead-actions'); var b = el('button', 'btn btn-secondary danger', deleteLabel); b.type = 'button'; var armed = false;
-      b.addEventListener('click', function () { if (!armed) { armed = true; b.textContent = 'Tap again to confirm'; return; } b.disabled = true; onDelete().then(function () { li.remove(); }, function () { b.disabled = false; armed = false; b.textContent = deleteLabel; toast('Couldn\u2019t delete. Try again.'); }); });
-      acts.appendChild(b); li.appendChild(acts); }
-    return li;
-  }
-  function adminDelete(table, id) { return leadApi({ action: 'admindelete', table: table, id: id }, true).then(function (j) { if (!j || !j.ok) throw new Error('no'); }); }
-  /* ---------- team insights (R46, R61): counters worked out from what the Admin tab already loads ---------- */
-  function svgEl(name, attrs) { var n = document.createElementNS('http://www.w3.org/2000/svg', name); Object.keys(attrs || {}).forEach(function (k) { n.setAttribute(k, attrs[k]); }); return n; }
-  function topN(map, n) { return Object.keys(map).map(function (k) { return [k, map[k]]; }).sort(function (a, b) { return b[1] - a[1] || (a[0] < b[0] ? -1 : 1); }).slice(0, n); }
-  function renderInsights() {
-    var box = $('insights'); box.hidden = !adminData; if (!adminData) return;
-    var d = adminData, now = Date.now(), DAY = 864e5, c7 = 0, c30 = 0, who = Object.create(null), cos = Object.create(null), perDay = Object.create(null);
-    function dayOf(ms) { var x = new Date(ms); return x.getFullYear() + '-' + (x.getMonth() < 9 ? '0' : '') + (x.getMonth() + 1) + '-' + (x.getDate() < 10 ? '0' : '') + x.getDate(); }   // the viewer's own calendar day
-    d.contacts.forEach(function (c) {
-      var t = Date.parse(c.cr18b_capturedat || c.createdon || ''); if (isNaN(t)) return;
-      var age = (now - t) / DAY;
-      if (age <= 7) c7++;
-      if (age <= 30) {
-        c30++;
-        var w = String(c.cr18b_capturedby || 'unknown').replace(/\s*<.*>\s*$/, '').trim() || 'unknown'; who[w] = (who[w] || 0) + 1;
-        var co = String(c.cr18b_company || '').trim(); if (co) cos[co] = (cos[co] || 0) + 1;
-      }
-      var k = dayOf(t); perDay[k] = (perDay[k] || 0) + 1;
+  /* ---------- admin console: it lives in its own page (admin.html). The app keeps only a link, shown once the GCS Admin flow confirms the person is on the admin list ---------- */
+  function adminUrl() { return String(CONFIG.adminUrl || '').trim(); }
+  function probeAdmin() {
+    if (!adminUrl() || !msReady()) return Promise.resolve(false);
+    return msToken(false).then(function (tok) {
+      if (!tok) return null;
+      return fetch(adminUrl(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ token: tok, action: 'whoami' }) })
+        .then(function (r) {   // only a plain 200 that says admin:true counts; 401 and 403 mean no; anything else (202, 500, odd answers) means we could not tell
+          if (r.status === 200) return r.json().then(function (j) { return !!(j && j.admin === true); }, function () { return null; });
+          return (r.status === 401 || r.status === 403) ? false : null;
+        });
+    }).catch(function () { return null; }).then(function (admin) {   // null = could not tell (offline, flow trouble): leave the link as it was
+      if (admin !== null) $('tabbar').classList.toggle('has-admin', admin);
+      return !!admin;
     });
-    var active = d.cards.filter(function (c) { return c.statecode !== 1; }).length;
-    var verified = d.leads.filter(function (l) { return /^verified/i.test(l.cr18b_cardverification || ''); }).length;
-    var kp = $('kpis'); kp.innerHTML = '';
-    [[active, 'published cards'], [d.leads.length, 'leads waiting'], [c7, 'contacts, last 7 days'], [c30, 'contacts, last 30 days'],
-     [Object.keys(who).length, 'people capturing'], [(d.leads.length ? Math.round(100 * verified / d.leads.length) : 0) + '%', 'leads from verified cards']].forEach(function (k) {
-      var div = el('div', 'kpi'); div.appendChild(el('b', null, String(k[0]))); div.appendChild(el('span', null, k[1])); kp.appendChild(div);
-    });
-    var days = [], max = 1, i;
-    for (i = 13; i >= 0; i--) { var dt = new Date(now - i * DAY), key = dayOf(dt.getTime()), n = perDay[key] || 0; days.push([key, n, dt.getDate()]); max = Math.max(max, n); }
-    var svg = svgEl('svg', { 'class': 'bars', viewBox: '0 0 308 96', role: 'img', 'aria-label': 'Contacts captured per day over the last 14 days' });
-    days.forEach(function (x, j) {
-      var h = Math.round(58 * x[1] / max), bx = 4 + j * 22;
-      svg.appendChild(svgEl('rect', { x: bx, y: 70 - h, width: 16, height: Math.max(h, x[1] ? 2 : 0), rx: 2 }));
-      if (x[1]) { var t1 = svgEl('text', { x: bx + 8, y: 66 - h, 'text-anchor': 'middle' }); t1.textContent = String(x[1]); svg.appendChild(t1); }
-      if (j % 2 === 0 || j === 13) { var t2 = svgEl('text', { x: bx + 8, y: 86, 'text-anchor': 'middle' }); t2.textContent = String(x[2]); svg.appendChild(t2); }
-    });
-    var bb = $('barsBox'); bb.innerHTML = ''; bb.appendChild(svg);
-    [['rankWho', who, 'Nobody has captured in the last 30 days.'], ['rankCo', cos, 'No companies yet.']].forEach(function (r) {
-      var ul = $(r[0]); ul.innerHTML = ''; var top = topN(r[1], 5);
-      if (!top.length) ul.appendChild(el('li', 'csub', r[2]));
-      top.forEach(function (t) { var li = el('li'); li.appendChild(el('span', null, t[0])); li.appendChild(el('span', null, String(t[1]))); ul.appendChild(li); });
-    });
-    $('insightNote').textContent = d.contacts.length >= 200 ? 'Counts use the latest 200 captures, so a very busy month may show lower than the real total.' : '';
-    $('insightNote').hidden = !$('insightNote').textContent;
   }
-  window.__insights = { render: renderInsights };
-  function renderAdmin() {
-    var d = adminData || { cards: [], leads: [], contacts: [] };
-    renderInsights();
-    $('adminCount').textContent = d.cards.length + ' cards';
-    var uc = $('adminCards'); uc.innerHTML = '';
-    d.cards.forEach(function (c) { uc.appendChild(adminRow((c.cr18b_name || '(no name)') + (c.statecode === 1 ? ' (inactive)' : ''), [c.cr18b_title, c.cr18b_company, c.cr18b_owneremail, c.cr18b_publicid ? 'id ' + c.cr18b_publicid : 'no id', c.cr18b_publishedat ? fmt(c.cr18b_publishedat) : ''].filter(Boolean).join(' \u00b7 '), function () { return adminDelete('card', c.cr18b_staffcardid); }, 'Unpublish')); });
-    if (!d.cards.length) uc.appendChild(el('li', 'csub', 'No published cards.'));
-    var ul = $('adminLeads'); ul.innerHTML = '';
-    d.leads.forEach(function (l) { ul.appendChild(adminRow(l.cr18b_name || '(no name)', [l.cr18b_company, l.cr18b_email, 'for ' + (l.cr18b_owneremail || '?'), l.cr18b_cardverification, l.createdon ? fmt(l.createdon) : ''].filter(Boolean).join(' \u00b7 '), function () { return adminDelete('lead', l.cr18b_cardleadid); }, 'Delete')); });
-    if (!d.leads.length) ul.appendChild(el('li', 'csub', 'No leads waiting.'));
-    var un = $('adminContacts'); un.innerHTML = '';
-    d.contacts.forEach(function (c) { un.appendChild(adminRow(c.cr18b_name || '(no name)', [c.cr18b_company, c.cr18b_capturedby, c.cr18b_capturedat ? fmt(c.cr18b_capturedat) : ''].filter(Boolean).join(' \u00b7 '))); });
-    if (!d.contacts.length) un.appendChild(el('li', 'csub', 'Nothing captured yet.'));
-  }
-  function loadAdmin(interactive) {
-    if (!leadsReady()) return Promise.resolve(false);
-    return leadApi({ action: 'adminlist' }, interactive).then(function (j) {
-      if (!j || !j.ok) throw new Error('no');
-      adminData = { cards: j.cards || [], leads: j.leads || [], contacts: j.contacts || [] };
-      $('tabbar').classList.add('has-admin'); renderAdmin(); return true;
-    }).catch(function () { $('tabbar').classList.remove('has-admin'); return false; });
-  }
-  $('adminRefresh').addEventListener('click', function () { loadAdmin(true).then(function (ok) { toast(ok ? 'Refreshed' : 'Admins only'); }); });
 
   /* ---------- forget me (R41): removes my published card and the leads addressed to me ---------- */
   function forgetMe() {
@@ -1105,7 +1044,7 @@ var CONFIG = {
   }
 
   /* ---------- sign-in gate (R25): staff only ---------- */
-  function lockApp(locked) { document.body.classList.toggle('locked', locked); $('panel-lock').hidden = !locked; ['card', 'capture', 'contacts', 'admin'].forEach(function (n) { if (locked) $('panel-' + n).hidden = true; }); }
+  function lockApp(locked) { document.body.classList.toggle('locked', locked); $('panel-lock').hidden = !locked; ['card', 'capture', 'contacts'].forEach(function (n) { if (locked) $('panel-' + n).hidden = true; }); }
   /* With no signal the sign-in token cannot be renewed. A phone that signed in within the last OFFLINE_DAYS days may still open the app; every flow call
      checks the token on the server anyway, and the sign-in is checked again as soon as the phone is really online. The marker is our own, because the
      sign-in library may drop its cache when iOS ends the app. */
@@ -1123,7 +1062,7 @@ var CONFIG = {
     if (!CONFIG.requireSignIn || !msReady()) return Promise.resolve(true);
     function openOrLock() { return knownDeviceOffline().then(function (ok) { if (ok) return unlockForOffline(); lockApp(true); return false; }); }
     return msToken(false).then(function (tok) {
-      if (tok) { markSignedIn(); lockApp(false); showTab('card'); setTimeout(function () { loadAdmin(false); }, 1200); return true; }
+      if (tok) { markSignedIn(); lockApp(false); showTab('card'); setTimeout(probeAdmin, 1200); return true; }
       return openOrLock();
     }).catch(function () { return openOrLock(); });
   }
@@ -1133,7 +1072,7 @@ var CONFIG = {
       if (off) return;                                   // still no real connection: stay as we are
       msToken(false).then(function (tok) {
         unlockedOffline = false;
-        if (tok) { markSignedIn(); setTimeout(function () { loadAdmin(false); }, 600); return; }
+        if (tok) { markSignedIn(); setTimeout(probeAdmin, 600); return; }
         lockApp(true); $('lockMsg').textContent = 'Sign in again to continue. Your contacts are still on this phone.';
       }, function () {});
     });
@@ -1154,7 +1093,7 @@ var CONFIG = {
   $('signOutPhone').addEventListener('click', signOutPhone);
   $('lockSignIn').addEventListener('click', function () {
     $('lockMsg').textContent = 'Opening Microsoft sign-in\u2026';
-    msToken(true).then(function (tok) { if (!tok) throw new Error('no token'); markSignedIn(); unlockedOffline = false; lockApp(false); showTab('card'); toast('Signed in'); setTimeout(function () { loadAdmin(false); }, 800); })
+    msToken(true).then(function (tok) { if (!tok) throw new Error('no token'); markSignedIn(); unlockedOffline = false; lockApp(false); showTab('card'); toast('Signed in'); setTimeout(probeAdmin, 800); })
       .catch(function () { $('lockMsg').textContent = 'Sign-in didn\u2019t finish. Try again.'; });
   });
 
@@ -1195,6 +1134,9 @@ var CONFIG = {
     var f = body.querySelector('form');
     var vals = profile || {};
     ['first', 'last', 'ar', 'title', 'titleAr', 'company', 'companyAr', 'phone', 'email', 'web', 'department', 'office', 'officePhone', 'fax', 'street', 'city', 'state', 'postal', 'country'].forEach(function (n) { f.elements.namedItem(n).value = vals[n] || ''; });
+    Array.prototype.forEach.call(f.querySelectorAll('details'), function (d) {   // a folded group opens by itself when it already holds something
+      d.open = Array.prototype.some.call(d.querySelectorAll('input'), function (i) { return !!i.value; });
+    });
     f.addEventListener('submit', function (ev) {
       ev.preventDefault();
       var p = Object.assign({}, profile || {});
@@ -1380,10 +1322,12 @@ var CONFIG = {
     fn.limits().then(function (l) { readCaps = l; sampleOk = !!(l && l.images); updatePhotoUI(); }, function () { updatePhotoUI(); });
   });
   function openReaderSettings() {
-    var body = openSheet('Card reader');
-    body.appendChild(el('p', null, 'Where card photos are sent to be read. Paste the reader address here once, then send colleagues the setup link so their phones connect with one tap.'));
+    var body = openSheet('Settings');
+    var connected = !!readerUrl();
+    body.appendChild(el('h3', 'h3', 'Card reader'));
+    body.appendChild(el('p', null, connected ? 'Card photos are read by the company reader. There is nothing to set up.' : 'Where card photos are sent to be read. Paste the reader address here once, then send colleagues the setup link so their phones connect with one tap.'));
     var f = el('form'); f.noValidate = true;
-    var l1 = el('label', null, 'Reader URL'); var i1 = el('input'); i1.type = 'url'; i1.placeholder = 'https://…'; i1.value = readerCfg.url || ''; i1.autocomplete = 'off'; l1.appendChild(i1);
+    var l1 = el('label', null, 'Reader URL'); var i1 = el('input'); i1.type = 'url'; i1.placeholder = 'https://\u2026'; i1.value = readerCfg.url || ''; i1.autocomplete = 'off'; l1.appendChild(i1);
     var l2 = el('label', null, 'Token (optional)'); var i2 = el('input'); i2.type = 'text'; i2.value = readerCfg.token || ''; i2.autocomplete = 'off'; l2.appendChild(i2);
     var l3 = el('label', null, 'Save to Dataverse URL (optional)'); var i3 = el('input'); i3.type = 'url'; i3.placeholder = 'https://\u2026'; i3.value = readerCfg.saveUrl || ''; i3.autocomplete = 'off'; l3.appendChild(i3);
     l1.style.marginTop = '14px'; l2.style.marginTop = '10px'; l3.style.marginTop = '10px';
@@ -1394,7 +1338,7 @@ var CONFIG = {
     var clear = el('button', 'btn btn-secondary', 'Use the built-in setting'); clear.type = 'button';
     clear.addEventListener('click', function () { readerCfg = {}; store.del(K.reader); closeSheet(); updatePhotoUI(); toast(readerUrl() ? 'Using the built-in reader' : 'No reader configured'); });
     row.appendChild(save); row.appendChild(clear); f.appendChild(row);
-    var note = el('p', 'hint', CONFIG.readerUrl ? 'Built-in reader: ' + CONFIG.readerUrl : 'No built-in reader in this copy.'); note.style.marginTop = '12px'; f.appendChild(note);
+    if (!connected) { var note = el('p', 'hint', 'No built-in reader in this copy.'); note.style.marginTop = '12px'; f.appendChild(note); }   // the built-in address (it carries a key) is never shown on screen
     f.addEventListener('submit', function (ev) {
       ev.preventDefault();
       var u = i1.value.trim(), sv = i3.value.trim(), pbv = i4.value.trim();
@@ -1402,18 +1346,10 @@ var CONFIG = {
       readerCfg = { url: u, token: i2.value.trim(), saveUrl: sv, publishUrl: pbv }; store.set(K.reader, readerCfg);
       closeSheet(); updatePhotoUI(); toast(u ? 'Reader saved' : 'Reader cleared');
     });
-    body.appendChild(f);
+    var adv = el('details', 'opt'); adv.open = !connected; adv.appendChild(el('summary', null, 'Advanced: connection addresses')); adv.appendChild(f); body.appendChild(adv);
     if (publishUrl() && msReady()) {
-      var hk = el('button', 'btn btn-secondary btn-block', 'Delete sample and test rows in Dataverse'); hk.type = 'button'; hk.style.marginTop = '14px';
-      hk.addEventListener('click', function () {
-        if (!confirm('Delete Copilot\u2019s sample people and the test rows from Staff Cards, Card Leads and Captured Cards? Real cards and leads are kept.')) return;
-        hk.disabled = true; hk.textContent = 'Cleaning up\u2026';
-        leadApi({ action: 'cleanup' }, true).then(function (j) {
-          toast('Removed ' + (j.cards || 0) + ' sample cards, ' + (j.leads || 0) + ' test leads, ' + (j.contacts || 0) + ' test contacts');
-          hk.textContent = 'Done';
-        }).catch(function () { toast('Clean-up failed. Sign in and try again.'); hk.disabled = false; hk.textContent = 'Delete sample and test rows in Dataverse'; });
-      });
-      body.appendChild(hk);
+      body.appendChild(el('h3', 'h3', 'My data'));
+      body.appendChild(el('p', null, 'Removes your published card and the leads addressed to you from the company database. Contacts you captured are kept.'));
       var fm = el('button', 'btn btn-secondary danger btn-block', 'Remove my card and my leads from Dataverse'); fm.type = 'button'; fm.style.marginTop = '10px';
       fm.addEventListener('click', forgetMe); body.appendChild(fm);
     }
@@ -2151,6 +2087,7 @@ var CONFIG = {
     });
     $('cCount').textContent = contacts.length ? (q ? shown.length + ' of ' + contacts.length : contacts.length + (contacts.length === 1 ? ' saved' : ' saved')) : '';
     $('cEmpty').hidden = contacts.length > 0;
+    ['expCsv', 'expJson', 'delAll'].forEach(function (id) { $(id).hidden = !contacts.length; });   // nothing to export or delete yet
     $('syncRow').hidden = !saveUrl() || !contacts.some(function (c) { return !c.synced && !c.pendingRead; });
     if (contacts.length && !shown.length) list.appendChild(el('li', 'muted', 'No matches.'));
     shown.forEach(function (c) {
@@ -2158,7 +2095,7 @@ var CONFIG = {
       var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('viewBox', '0 0 76 92'); svg.setAttribute('class', 'mini'); svg.setAttribute('aria-hidden', 'true');
       var path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', 'M38 0 C52 8 76 26 76 50 L76 92 L0 92 L0 50 C0 26 24 8 38 0 Z'); path.setAttribute('fill', c.photo ? 'var(--card-2)' : 'var(--accent)');
       var txt = document.createElementNS('http://www.w3.org/2000/svg', 'text'); txt.setAttribute('x', '38'); txt.setAttribute('y', '54'); txt.setAttribute('text-anchor', 'middle'); txt.setAttribute('dominant-baseline', 'central'); txt.setAttribute('font-size', '30'); txt.textContent = initials(c.name);
-      if (c.photo) txt.setAttribute('fill', '#F2F6F4');
+      if (c.photo) txt.style.fill = '#F2F6F4';   // inline style: the .mini text rule in the stylesheet would override a fill attribute and leave dark initials on the dark arch
       svg.appendChild(path); svg.appendChild(txt);
       var main = el('div', 'cmain'); main.appendChild(el('div', 'cname', c.name));
       main.appendChild(el('div', 'csub', [c.company, c.event].filter(Boolean).join(', ') || c.email || c.phone || ''));

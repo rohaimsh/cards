@@ -235,7 +235,7 @@ textarea{min-height:88px;resize:vertical}
    noteMax   Longest note a visitor can leave. The Card Leads note column was widened to 500 on Oct 8 (tools/widen_columns.py --apply --write-widths); if you change its width again, rebuild the flows and set the new width here (the tool prints it).
    logo      Company logo as a data URI (PNG, SVG, JPEG or WebP, under 30 KB). Empty = no logo. tools/logo_to_datauri.py makes one from an image file.
    quirks    true = playful Great Teacher Onizuka wording and sample card (English only). Set false for plain professional wording. */
-var PAGE_VERSION = '2.8';
+var PAGE_VERSION = '2.9';
 var CONFIG = {
   cardUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/26/workflows/3cae8d3bf3a54d079a1bbe95bda554f6/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=1NFydb7KaYRQJZyj9UWp53kJkryIkDRn1I-GErgmOPQ',
   vcardUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/00/workflows/a58f4d59c3b448fab87803caf8179efe/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=5klYhy4Rf5XEa8N8CRIBc0jEjrgWvzryj5kP5UGJ9z4',    /* Power Automate "GCS vCard" flow (GET). Phones open this as a real .vcf and add the contact. */
@@ -245,7 +245,7 @@ var CONFIG = {
   noteMax: 500,
   brand: null,
   logo: '',
-  quirks: true
+  quirks: false
 };
 
 /* ===== Personality: Great Teacher Onizuka mode =====
@@ -611,6 +611,7 @@ var QUIRKS = {
     return did;
   }
   window.__applyBrand = applyBrand;
+  window.__demoCard = function () { return (CONFIG.quirks && QUIRKS.demo) ? QUIRKS.demo : DEMO; };   /* used only by automated tests */
   function start() {
     applyBrand(CONFIG.brand);
     var q = new URLSearchParams(location.search), id = q.get('c') || '';

@@ -63,6 +63,9 @@ p,h1,h2,h3{margin:0}
 .btn-secondary:hover{border-color:var(--ink-2)}
 .btn:disabled{opacity:.6;cursor:default}
 .btn.danger{color:var(--err);border-color:var(--err)}
+.rows .btn.danger{border-color:var(--line)}
+.rows .btn.danger:hover{border-color:var(--err)}
+.rows .btn.danger.armed{background:var(--err);border-color:var(--err);color:#fff}
 
 /* states (loading, sign in, not an admin, problem) */
 .state{max-width:440px;margin:56px auto;text-align:center}
@@ -97,11 +100,18 @@ p,h1,h2,h3{margin:0}
 }
 .box{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-top:14px}
 .box .h3{margin-top:0}
+.mark{width:15px;height:18px;vertical-align:-3px;margin-right:8px;fill:var(--accent)}
+.pill{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:500;border:1px solid var(--line);color:var(--ink-2);vertical-align:1px}
+.pill.ok{color:var(--ok);border-color:var(--ok)}
+.box ul{margin:6px 0 0;padding-left:20px;color:var(--ink-2);font-size:15px}
+.box li{margin:5px 0}
+.warn{border:1px solid var(--err);border-radius:var(--radius);padding:10px 12px;margin:14px 0;font-size:14px;color:var(--ink)}
 .problem{border:1px solid var(--err);border-radius:var(--radius);padding:12px 14px;margin-top:14px}
 .problem p{color:var(--ink);margin-bottom:10px}
 
 /* team insights */
-.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:10px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
+@media (max-width:560px){.kpis{grid-template-columns:repeat(2,1fr)}}
 .kpi{border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;background:var(--surface)}
 .kpi b{display:block;font-size:26px;font-weight:600;line-height:1.1}
 .kpi span{font-size:13px;color:var(--ink-2)}
@@ -124,7 +134,7 @@ p,h1,h2,h3{margin:0}
 <body>
 <div class="shell">
   <header class="top">
-    <div class="wordmark">GCS<span class="wm-sub">Admin console</span></div>
+    <div class="wordmark"><svg class="mark" viewBox="0 0 76 92" aria-hidden="true"><path d="M38 0 C52 8 76 26 76 50 L76 92 L0 92 L0 50 C0 26 24 8 38 0 Z"/></svg>GCS<span class="wm-sub">Admin console</span></div>
     <div class="who">
       <span id="whoName"></span>
       <a class="chip-btn" href="./">Back to the app</a>
@@ -154,9 +164,9 @@ p,h1,h2,h3{margin:0}
 
   <div id="console" hidden>
     <nav class="nav" id="nav" aria-label="Admin sections"></nav>
-    <div class="bar"><span class="csub" id="updated"></span><button class="btn btn-secondary" id="refresh" type="button">Refresh</button></div>
+    <div class="bar" id="bar"><span class="csub" id="updated"></span><button class="btn btn-secondary" id="refresh" type="button">Refresh</button></div>
     <main id="view"></main>
-    <p class="foot">GCS admin console v<span id="ver"></span>. This page only shows and hides things: every action is checked against the admin list on the server.</p>
+    <p class="foot">GCS admin console v<span id="ver"></span> &middot; every action is checked against the admin list on the server.</p>
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -348,15 +358,17 @@ var CONFIG = {
     else if (e && e.code === 'notadmin') { $('naWho').textContent = account ? account.username || '' : ''; showScreen('sNotAdmin'); }
     else toast(fallback);
   }
-  /* a row with an optional button that needs a second, deliberate tap: the first tap arms it for 4 seconds, a second tap within half a second
-     is ignored (a double tap is not a confirmation), and it disarms by itself or when it loses focus */
-  function row(title, sub, action) {
-    var li = el('li'), main = el('div', 'main'); main.appendChild(el('div', 'cname', title)); if (sub) main.appendChild(el('div', 'csub', sub)); li.appendChild(main);
+  /* a row with an optional button that needs a second, deliberate tap: the first tap arms it for 4 seconds (it turns red), a second tap within half a second
+     is ignored (a double tap is not a confirmation), and it disarms by itself or when it loses focus. `badge` is a small label next to the name. */
+  function row(title, sub, action, badge) {
+    var li = el('li'), main = el('div', 'main'), nm = el('div', 'cname', title);
+    if (badge) nm.appendChild(el('span', 'pill' + (badge.ok ? ' ok' : ''), badge.text));
+    main.appendChild(nm); if (sub) main.appendChild(el('div', 'csub', sub)); li.appendChild(main);
     if (action) {
       var b = el('button', 'btn btn-secondary danger', action.label), armed = false, armedAt = 0, timer = null; b.type = 'button';
-      var disarm = function () { armed = false; clearTimeout(timer); b.textContent = action.label; };
+      var disarm = function () { armed = false; clearTimeout(timer); b.textContent = action.label; b.classList.remove('armed'); };
       b.addEventListener('click', function () {
-        if (!armed) { armed = true; armedAt = Date.now(); b.textContent = 'Tap again to confirm'; timer = setTimeout(disarm, 4000); return; }
+        if (!armed) { armed = true; armedAt = Date.now(); b.textContent = 'Tap again to confirm'; b.classList.add('armed'); timer = setTimeout(disarm, 4000); return; }
         if (Date.now() - armedAt < 500) return;
         clearTimeout(timer); b.disabled = true;
         action.run().then(function () { toast(action.done || 'Done'); }, function (e) { b.disabled = false; disarm(); actionFailed(e, 'Could not do that. Try again.'); });
@@ -397,13 +409,13 @@ var CONFIG = {
     host.appendChild(kp);
     host.appendChild(el('h3', 'h3', 'Contacts captured per day (last 14 days)'));
     var days = [], max = 1, i;
-    for (i = 13; i >= 0; i--) { var dt = new Date(now - i * DAY), key = dayOf(dt.getTime()), n = perDay[key] || 0; days.push([key, n, dt.getDate()]); max = Math.max(max, n); }
+    for (i = 13; i >= 0; i--) { var dt = new Date(now - i * DAY), key = dayOf(dt.getTime()), n = perDay[key] || 0; days.push([key, n, (i === 13 || dt.getDate() === 1) ? dt.getDate() + ' ' + dt.toLocaleDateString(undefined, { month: 'short' }) : String(dt.getDate())]); max = Math.max(max, n); }
     var svg = svgEl('svg', { 'class': 'bars', viewBox: '0 0 308 96', role: 'img', 'aria-label': 'Contacts captured per day over the last 14 days' });
     days.forEach(function (x, j) {
       var h = Math.round(58 * x[1] / max), bx = 4 + j * 22;
       svg.appendChild(svgEl('rect', { x: bx, y: 70 - h, width: 16, height: Math.max(h, x[1] ? 2 : 0), rx: 2 }));
       if (x[1]) { var t1 = svgEl('text', { x: bx + 8, y: 66 - h, 'text-anchor': 'middle' }); t1.textContent = String(x[1]); svg.appendChild(t1); }
-      if (j % 2 === 0 || j === 13) { var t2 = svgEl('text', { x: bx + 8, y: 86, 'text-anchor': 'middle' }); t2.textContent = String(x[2]); svg.appendChild(t2); }
+      if (j % 2 === 0 || j === 13) { var t2 = svgEl('text', { x: bx + 8, y: 86, 'text-anchor': j === 0 ? 'start' : 'middle' }); if (j === 0) t2.setAttribute('x', bx); t2.textContent = String(x[2]); svg.appendChild(t2); }
     });
     host.appendChild(svg);
     [['Who is capturing (last 30 days)', who, 'Nobody has captured in the last 30 days.', 'rankWho'], ['Companies met (last 30 days)', cos, 'No companies yet.', 'rankCo']].forEach(function (r) {
@@ -428,11 +440,11 @@ var CONFIG = {
       var d = state.list || d0; ul.innerHTML = ''; h.lastChild.textContent = String(d.cards.length);
       var shown = d.cards.filter(function (c) { return matches(q.value, [c.cr18b_name, c.cr18b_title, c.cr18b_company, c.cr18b_owneremail, c.cr18b_publicid]); });
       shown.forEach(function (c) {
-        ul.appendChild(row((c.cr18b_name || '(no name)') + (c.statecode === 1 ? ' (inactive)' : ''),
+        ul.appendChild(row(c.cr18b_name || '(no name)',
           dot([c.cr18b_title, c.cr18b_company, c.cr18b_owneremail, c.cr18b_publicid ? 'id ' + c.cr18b_publicid : 'no id', c.cr18b_publishedat ? fmt(c.cr18b_publishedat) : '']),
           { label: 'Delete card', done: 'Card deleted', run: function () {
             return adminApi('deletecard', { id: c.cr18b_staffcardid }).then(function (j) { if (!j || !j.ok) throw fail('http'); forget('cards', c.cr18b_staffcardid); });
-          } }));
+          } }, c.statecode === 1 ? { text: 'inactive' } : null));
       });
       if (!shown.length) ul.appendChild(el('li', 'empty', d.cards.length ? 'No cards match.' : 'No published cards.'));
     }
@@ -450,10 +462,10 @@ var CONFIG = {
       var shown = d.leads.filter(function (l) { return matches(q.value, [l.cr18b_name, l.cr18b_company, l.cr18b_email, l.cr18b_owneremail]); });
       shown.forEach(function (l) {
         ul.appendChild(row(l.cr18b_name || '(no name)',
-          dot([l.cr18b_company, l.cr18b_email, 'for ' + (l.cr18b_owneremail || '?'), l.cr18b_cardverification, l.createdon ? fmt(l.createdon) : '']),
+          dot([l.cr18b_company, l.cr18b_email, 'for ' + (l.cr18b_owneremail || '?'), l.createdon ? fmt(l.createdon) : '']),
           { label: 'Delete', done: 'Lead deleted', run: function () {
             return adminApi('deletelead', { id: l.cr18b_cardleadid }).then(function (j) { if (!j || !j.ok) throw fail('http'); forget('leads', l.cr18b_cardleadid); });
-          } }));
+          } }, /^verified/i.test(l.cr18b_cardverification || '') ? { text: 'verified', ok: true } : { text: 'not verified' }));
       });
       if (!shown.length) ul.appendChild(el('li', 'empty', d.leads.length ? 'No leads match.' : 'No leads waiting.'));
     }
@@ -479,7 +491,13 @@ var CONFIG = {
     host.appendChild(head('Maintenance'));
     var box = el('section', 'box');
     box.appendChild(el('h3', 'h3', 'Delete sample and test rows'));
-    box.appendChild(el('p', 'sub', 'Removes from Dataverse: Staff Cards without a public id (the sample people); Card Leads with no submitted date, whose name starts with Test, Curl, Playwright or Version Probe, or whose card id starts with TESTCARD or NOCARD; Captured Cards with no captured date, whose name starts with Test or Dupe Test, or whose source is "test". It matches on names, so a real person called Test-something would go too, and it also reaches rows this console does not list (closed leads, older captures): look at Leads and Captures first. Each run deletes at most 200 rows per table; if a number below says 200, run it again.'));
+    box.appendChild(el('p', 'sub', 'Removes the leftovers of set-up and testing from Dataverse:'));
+    var ul = el('ul');
+    ['Staff Cards without a public id (the sample people)',
+     'Card Leads with no submitted date, or whose name starts with Test, Curl, Playwright or Version Probe, or whose card id starts with TESTCARD or NOCARD',
+     'Captured Cards with no captured date, whose name starts with Test or Dupe Test, or whose source is "test"'].forEach(function (t) { ul.appendChild(el('li', null, t)); });
+    box.appendChild(ul);
+    box.appendChild(el('p', 'warn', 'It matches on names, so a real person called Test-something would go too, and it also reaches rows this console does not list (closed leads, older captures): look at Leads and Captures first. Each run deletes at most 200 rows per table; if a number below says 200, run it again.'));
     var b = el('button', 'btn btn-secondary danger', 'Delete sample and test rows'); b.type = 'button';
     b.addEventListener('click', function () {
       if (!confirm('Delete the sample people and test rows from Staff Cards, Card Leads and Captured Cards? Real cards and leads are kept.')) return;
@@ -523,7 +541,7 @@ var CONFIG = {
     var r = el('button', 'btn btn-secondary', 'Try again'); r.type = 'button'; r.addEventListener('click', retry); box.appendChild(r); return box;
   }
   function showSection(id) {
-    var sec = SECTIONS.filter(function (s) { return s.id === id; })[0], mine = ++seq; shown = sec; redraw = null;
+    var sec = SECTIONS.filter(function (s) { return s.id === id; })[0], mine = ++seq; shown = sec; redraw = null; $('bar').hidden = !sec.load;
     Array.prototype.forEach.call($('nav').children, function (a) { if (a.dataset.id === id) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     var view = $('view'); view.innerHTML = ''; view.appendChild(el('p', 'csub', 'Loading…'));
     return Promise.resolve(sec.load ? sec.load() : null).then(function (data) {
