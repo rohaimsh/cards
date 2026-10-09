@@ -90,6 +90,11 @@ p,h1,h2,h3{margin:0}
 .rows .csub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rows .btn{flex:none;min-height:36px;padding:6px 12px;font-size:14px}
 .rows li.empty{display:block;color:var(--ink-2);font-size:14px;border-style:dashed}
+@media (max-width:560px){
+  .rows li{flex-wrap:wrap}
+  .rows .main{flex-basis:100%}
+  .rows .cname,.rows .csub{white-space:normal;overflow-wrap:anywhere}
+}
 .box{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-top:14px}
 .box .h3{margin-top:0}
 .problem{border:1px solid var(--err);border-radius:var(--radius);padding:12px 14px;margin-top:14px}
@@ -234,7 +239,7 @@ function(e){return e.hasOwnProperty("authorization_endpoint")&&e.hasOwnProperty(
    To add an admin feature: (1) add one case to the Switch in the GCS Admin flow (flows/build_solution.py, "GCS Admin"), (2) add one entry to SECTIONS below. */
 var ADMIN_VERSION = '2.9';
 var CONFIG = {
-  adminUrl: '',   /* link of the GCS Admin flow; tools/set_flow_url.py fills it in after the flow package is imported */
+  adminUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/11/workflows/cc6e22e8e4e2461e93bdf68d491970d4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=g1-6GnhhJPCD4NijqvFnxp0hmxk4Rlxn21G2Y39_-As',   /* link of the GCS Admin flow; tools/set_flow_url.py fills it in after the flow package is imported */
   msClientId: 'c098890f-66d9-43f0-a317-be3c4a4dd2a3',
   msTenantId: '7071904e-0319-4819-b370-23fcd73a07a6'
 };
@@ -281,6 +286,8 @@ var CONFIG = {
 
   /* ---------- the admin flow ---------- */
   function fail(code, msg) { var e = new Error(msg || code); e.code = code; return e; }
+  /* the sign-in library reports a closed, blocked or timed-out sign-in window with an errorCode, not with our own code */
+  function popupTrouble(e) { return !!e && /user_cancelled|popup_window_error|interaction_in_progress|empty_window_error|monitor_window_timeout/i.test(String(e.errorCode || '')); }
   function adminApi(action, extra, interactive) {
     return msToken(!!interactive).then(function (tok) {
       if (!tok) throw fail('signin', 'no sign-in');
@@ -301,15 +308,31 @@ var CONFIG = {
   function problem(msg) { $('problemMsg').textContent = msg; showScreen('sProblem'); }
 
   /* ---------- data shared by the sections: one list call, kept until Refresh ---------- */
-  var state = { list: null, loadedAt: 0 };
+  var state = { list: null, loadedAt: 0, pending: null, gen: 0, gone: { cards: {}, leads: {} } };
+  var redraw = null;      // the draw function of the section on screen, so a finished delete updates what the person sees
+  function invalidate() { state.list = null; state.pending = null; state.gen++; }
+  function dropGone(l) {   // rows deleted during this visit never come back from an older answer
+    l.cards = l.cards.filter(function (c) { return !state.gone.cards[c.cr18b_staffcardid]; });
+    l.leads = l.leads.filter(function (x) { return !state.gone.leads[x.cr18b_cardleadid]; });
+    return l;
+  }
   function loadList() {
     if (state.list) return Promise.resolve(state.list);
-    return adminApi('list').then(function (j) {
+    if (state.pending) return state.pending;                       // one request at a time, shared by whoever asks
+    var gen = state.gen;
+    var p = adminApi('list').then(function (j) {
       if (!j || !j.ok) throw fail('http', 'bad answer');
-      state.list = { cards: j.cards || [], leads: j.leads || [], contacts: j.contacts || [] };
+      if (gen !== state.gen) return loadList();                    // a Refresh started meanwhile: its answer wins, this one may be older
+      state.list = dropGone({ cards: j.cards || [], leads: j.leads || [], contacts: j.contacts || [] });
       state.loadedAt = Date.now(); $('updated').textContent = 'Loaded ' + fmt(state.loadedAt);
       return state.list;
-    });
+    }).then(function (l) { if (state.pending === p) state.pending = null; return l; }, function (e) { if (state.pending === p) state.pending = null; throw e; });
+    state.pending = p; return p;
+  }
+  function forget(kind, id) {   // a delete the server confirmed: forget the row everywhere, now
+    state.gone[kind][id] = true;
+    if (state.list) removeFrom(state.list[kind], kind === 'cards' ? 'cr18b_staffcardid' : 'cr18b_cardleadid', id);
+    refreshNav(); if (redraw) redraw();
   }
 
   /* ---------- building blocks ---------- */
@@ -319,16 +342,26 @@ var CONFIG = {
     q.addEventListener('input', onChange); host.appendChild(q); return q;
   }
   function matches(q, parts) { q = q.trim().toLowerCase(); return !q || parts.join(' ').toLowerCase().indexOf(q) >= 0; }
-  /* a row with an optional button that needs a second tap to confirm */
+  /* a failed action: say why when it is the sign-in or the admin list, otherwise the generic message */
+  function actionFailed(e, fallback) {
+    if (e && e.code === 'signin') { toast('Your sign-in ended. Sign in again.'); showScreen('sSignin'); }
+    else if (e && e.code === 'notadmin') { $('naWho').textContent = account ? account.username || '' : ''; showScreen('sNotAdmin'); }
+    else toast(fallback);
+  }
+  /* a row with an optional button that needs a second, deliberate tap: the first tap arms it for 4 seconds, a second tap within half a second
+     is ignored (a double tap is not a confirmation), and it disarms by itself or when it loses focus */
   function row(title, sub, action) {
     var li = el('li'), main = el('div', 'main'); main.appendChild(el('div', 'cname', title)); if (sub) main.appendChild(el('div', 'csub', sub)); li.appendChild(main);
     if (action) {
-      var b = el('button', 'btn btn-secondary danger', action.label), armed = false; b.type = 'button';
+      var b = el('button', 'btn btn-secondary danger', action.label), armed = false, armedAt = 0, timer = null; b.type = 'button';
+      var disarm = function () { armed = false; clearTimeout(timer); b.textContent = action.label; };
       b.addEventListener('click', function () {
-        if (!armed) { armed = true; b.textContent = 'Tap again to confirm'; return; }
-        b.disabled = true;
-        action.run().then(function () { toast(action.done || 'Done'); }, function () { b.disabled = false; armed = false; b.textContent = action.label; toast('Could not do that. Try again.'); });
+        if (!armed) { armed = true; armedAt = Date.now(); b.textContent = 'Tap again to confirm'; timer = setTimeout(disarm, 4000); return; }
+        if (Date.now() - armedAt < 500) return;
+        clearTimeout(timer); b.disabled = true;
+        action.run().then(function () { toast(action.done || 'Done'); }, function (e) { b.disabled = false; disarm(); actionFailed(e, 'Could not do that. Try again.'); });
       });
+      b.addEventListener('blur', disarm);
       li.appendChild(b);
     }
     return li;
@@ -381,60 +414,64 @@ var CONFIG = {
       host.appendChild(ul);
     });
     if (d.contacts.length >= 200) host.appendChild(el('p', 'csub', 'Counts use the latest 200 captures, so a very busy month may show lower than the real total.'));
+    if (d.cards.length >= 500 || d.leads.length >= 500) host.appendChild(el('p', 'csub', 'The cards and leads lists stop at 500 rows each, so those counts may be lower than the real totals.'));
   }
 
   /* ---------- section: Cards ---------- */
-  function renderCards(host, d) {
-    host.appendChild(head('Published cards', d.cards.length));
+  function renderCards(host, d0) {
+    var h = head('Published cards', d0.cards.length); host.appendChild(h);
+    host.appendChild(el('p', 'csub', 'Deleting a card is permanent: if its owner publishes again they get a new public link, so a printed QR code for the old one stops working.'));
+    if (d0.cards.length >= 500) host.appendChild(el('p', 'csub', 'The list stops at 500 cards.'));
     var ul = el('ul', 'rows'); ul.id = 'adminCards';
-    var q = filterBox(host, draw); host.appendChild(ul);
+    var q = filterBox(host, function () { draw(); }); host.appendChild(ul);
     function draw() {
-      ul.innerHTML = '';
+      var d = state.list || d0; ul.innerHTML = ''; h.lastChild.textContent = String(d.cards.length);
       var shown = d.cards.filter(function (c) { return matches(q.value, [c.cr18b_name, c.cr18b_title, c.cr18b_company, c.cr18b_owneremail, c.cr18b_publicid]); });
       shown.forEach(function (c) {
         ul.appendChild(row((c.cr18b_name || '(no name)') + (c.statecode === 1 ? ' (inactive)' : ''),
           dot([c.cr18b_title, c.cr18b_company, c.cr18b_owneremail, c.cr18b_publicid ? 'id ' + c.cr18b_publicid : 'no id', c.cr18b_publishedat ? fmt(c.cr18b_publishedat) : '']),
-          { label: 'Unpublish', done: 'Card unpublished', run: function () {
-            return adminApi('deletecard', { id: c.cr18b_staffcardid }).then(function (j) { if (!j || !j.ok) throw fail('http'); removeFrom(d.cards, 'cr18b_staffcardid', c.cr18b_staffcardid); refreshNav(); draw(); });
+          { label: 'Delete card', done: 'Card deleted', run: function () {
+            return adminApi('deletecard', { id: c.cr18b_staffcardid }).then(function (j) { if (!j || !j.ok) throw fail('http'); forget('cards', c.cr18b_staffcardid); });
           } }));
       });
       if (!shown.length) ul.appendChild(el('li', 'empty', d.cards.length ? 'No cards match.' : 'No published cards.'));
     }
-    draw();
+    redraw = draw; draw();
   }
 
   /* ---------- section: Leads ---------- */
-  function renderLeads(host, d) {
-    host.appendChild(head('Leads waiting', d.leads.length));
+  function renderLeads(host, d0) {
+    var h = head('Leads waiting', d0.leads.length); host.appendChild(h);
+    if (d0.leads.length >= 500) host.appendChild(el('p', 'csub', 'The list stops at 500 leads.'));
     var ul = el('ul', 'rows'); ul.id = 'adminLeads';
-    var q = filterBox(host, draw); host.appendChild(ul);
+    var q = filterBox(host, function () { draw(); }); host.appendChild(ul);
     function draw() {
-      ul.innerHTML = '';
+      var d = state.list || d0; ul.innerHTML = ''; h.lastChild.textContent = String(d.leads.length);
       var shown = d.leads.filter(function (l) { return matches(q.value, [l.cr18b_name, l.cr18b_company, l.cr18b_email, l.cr18b_owneremail]); });
       shown.forEach(function (l) {
         ul.appendChild(row(l.cr18b_name || '(no name)',
           dot([l.cr18b_company, l.cr18b_email, 'for ' + (l.cr18b_owneremail || '?'), l.cr18b_cardverification, l.createdon ? fmt(l.createdon) : '']),
           { label: 'Delete', done: 'Lead deleted', run: function () {
-            return adminApi('deletelead', { id: l.cr18b_cardleadid }).then(function (j) { if (!j || !j.ok) throw fail('http'); removeFrom(d.leads, 'cr18b_cardleadid', l.cr18b_cardleadid); refreshNav(); draw(); });
+            return adminApi('deletelead', { id: l.cr18b_cardleadid }).then(function (j) { if (!j || !j.ok) throw fail('http'); forget('leads', l.cr18b_cardleadid); });
           } }));
       });
       if (!shown.length) ul.appendChild(el('li', 'empty', d.leads.length ? 'No leads match.' : 'No leads waiting.'));
     }
-    draw();
+    redraw = draw; draw();
   }
 
   /* ---------- section: Captures (read only) ---------- */
-  function renderCaptures(host, d) {
-    host.appendChild(head('Recent captures', d.contacts.length));
+  function renderCaptures(host, d0) {
+    host.appendChild(head('Recent captures', d0.contacts.length));
     var ul = el('ul', 'rows'); ul.id = 'adminContacts';
-    var q = filterBox(host, draw); host.appendChild(ul);
+    var q = filterBox(host, function () { draw(); }); host.appendChild(ul);
     function draw() {
-      ul.innerHTML = '';
+      var d = state.list || d0; ul.innerHTML = '';
       var shown = d.contacts.filter(function (c) { return matches(q.value, [c.cr18b_name, c.cr18b_company, c.cr18b_capturedby]); });
       shown.forEach(function (c) { ul.appendChild(row(c.cr18b_name || '(no name)', dot([c.cr18b_company, c.cr18b_capturedby, c.cr18b_capturedat ? fmt(c.cr18b_capturedat) : '']))); });
       if (!shown.length) ul.appendChild(el('li', 'empty', d.contacts.length ? 'No captures match.' : 'Nothing captured yet.'));
     }
-    draw();
+    redraw = draw; draw();
   }
 
   /* ---------- section: Maintenance ---------- */
@@ -442,16 +479,17 @@ var CONFIG = {
     host.appendChild(head('Maintenance'));
     var box = el('section', 'box');
     box.appendChild(el('h3', 'h3', 'Delete sample and test rows'));
-    box.appendChild(el('p', 'sub', 'Removes from Dataverse: Staff Cards without a public id (the sample people); Card Leads with no submitted date, whose name starts with Test, Curl, Playwright or Version Probe, or whose card id starts with TESTCARD or NOCARD; Captured Cards with no captured date, whose name starts with Test or Dupe Test, or whose source is "test". It matches on names, so a real person called Test-something would go too: look at Leads and Captures first.'));
+    box.appendChild(el('p', 'sub', 'Removes from Dataverse: Staff Cards without a public id (the sample people); Card Leads with no submitted date, whose name starts with Test, Curl, Playwright or Version Probe, or whose card id starts with TESTCARD or NOCARD; Captured Cards with no captured date, whose name starts with Test or Dupe Test, or whose source is "test". It matches on names, so a real person called Test-something would go too, and it also reaches rows this console does not list (closed leads, older captures): look at Leads and Captures first. Each run deletes at most 200 rows per table; if a number below says 200, run it again.'));
     var b = el('button', 'btn btn-secondary danger', 'Delete sample and test rows'); b.type = 'button';
     b.addEventListener('click', function () {
       if (!confirm('Delete the sample people and test rows from Staff Cards, Card Leads and Captured Cards? Real cards and leads are kept.')) return;
-      b.disabled = true; b.textContent = 'Cleaning up…';
+      b.disabled = true; b.textContent = 'Cleaning up\u2026';
       adminApi('cleanup').then(function (j) {
         if (!j || !j.ok) throw fail('http');
-        state.list = null; b.textContent = 'Done';
-        toast('Removed ' + (j.cards || 0) + ' sample cards, ' + (j.leads || 0) + ' test leads, ' + (j.contacts || 0) + ' test captures');
-      }).catch(function () { b.disabled = false; b.textContent = 'Delete sample and test rows'; toast('Clean-up did not finish. Check the lists, then try again.'); });
+        invalidate(); b.textContent = 'Done';
+        var n = [j.cards || 0, j.leads || 0, j.contacts || 0];
+        toast('Removed ' + n[0] + ' sample cards, ' + n[1] + ' test leads, ' + n[2] + ' test captures' + (Math.max(n[0], n[1], n[2]) >= 200 ? ' (200 is the limit per run: run it again)' : ''));
+      }).catch(function (e) { invalidate(); b.disabled = false; b.textContent = 'Delete sample and test rows'; actionFailed(e, 'Clean-up did not finish. Some rows may be gone: check the lists, then try again.'); });
     });
     box.appendChild(b); host.appendChild(box);
   }
@@ -485,7 +523,7 @@ var CONFIG = {
     var r = el('button', 'btn btn-secondary', 'Try again'); r.type = 'button'; r.addEventListener('click', retry); box.appendChild(r); return box;
   }
   function showSection(id) {
-    var sec = SECTIONS.filter(function (s) { return s.id === id; })[0], mine = ++seq; shown = sec;
+    var sec = SECTIONS.filter(function (s) { return s.id === id; })[0], mine = ++seq; shown = sec; redraw = null;
     Array.prototype.forEach.call($('nav').children, function (a) { if (a.dataset.id === id) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     var view = $('view'); view.innerHTML = ''; view.appendChild(el('p', 'csub', 'Loading…'));
     return Promise.resolve(sec.load ? sec.load() : null).then(function (data) {
@@ -497,7 +535,7 @@ var CONFIG = {
     });
   }
   window.addEventListener('hashchange', function () { if (!$('console').hidden) showSection(currentId()); });
-  $('refresh').addEventListener('click', function () { state.list = null; showSection(shown ? shown.id : currentId()).then(function (ok) { if (ok) toast('Refreshed'); }); });
+  $('refresh').addEventListener('click', function () { invalidate(); showSection(shown ? shown.id : currentId()).then(function (ok) { if (ok) toast('Refreshed'); }); });
 
   /* ---------- start ---------- */
   function start(interactive) {
@@ -508,7 +546,7 @@ var CONFIG = {
       $('whoName').textContent = account ? account.username || '' : '';
       showScreen('console'); buildNav(); showSection(currentId());
     }).catch(function (e) {
-      if (e && e.code === 'signin') { $('signInMsg').textContent = interactive ? 'Sign-in did not finish. Try again.' : ''; showScreen('sSignin'); }
+      if ((e && e.code === 'signin') || popupTrouble(e)) { $('signInMsg').textContent = interactive ? 'Sign-in did not finish. If a pop-up was blocked, allow pop-ups for this site and try again.' : ''; showScreen('sSignin'); }
       else if (e && e.code === 'notadmin') { $('naWho').textContent = account ? account.username || '' : ''; $('whoName').textContent = ''; showScreen('sNotAdmin'); }
       else problem('Could not reach the admin service. Check the connection and try again.');
     });
