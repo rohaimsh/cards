@@ -1,5 +1,6 @@
 {
-  "navigationFallback": { "rewrite": "/index.html", "exclude": ["/card.html", "/sw.js", "/*.{png,jpg,svg,ico,json,md}"] },
+  "navigationFallback": {"rewrite": "/index.html", "exclude": ["/card.html", "/admin.html", "/sw.js", "/*.{png,jpg,svg,ico,json,md}"]},
+  "routes": [{"route": "/admin.html", "headers": {"X-Robots-Tag": "noindex, nofollow"}}],
   "globalHeaders": {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
@@ -7,6 +8,6 @@
     "Permissions-Policy": "camera=(self), geolocation=()",
     "Cache-Control": "no-cache"
   },
-  "mimeTypes": { ".vcf": "text/vcard" },
-  "responseOverrides": { "404": { "rewrite": "/card.html" } }
+  "mimeTypes": {".vcf": "text/vcard"},
+  "responseOverrides": {"404": {"rewrite": "/card.html"}}
 }
