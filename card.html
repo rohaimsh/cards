@@ -234,8 +234,10 @@ textarea{min-height:88px;resize:vertical}
    brand     Company colours for the card page, for example {card: '#0E3B43', card2: '#1A525C', accent: '#C8963E'}. null = the default teal and gold. Six-digit hex only.
    noteMax   Longest note a visitor can leave. The Card Leads note column was widened to 500 on Oct 8 (tools/widen_columns.py --apply --write-widths); if you change its width again, rebuild the flows and set the new width here (the tool prints it).
    logo      Company logo as a data URI (PNG, SVG, JPEG or WebP, under 30 KB). Empty = no logo. tools/logo_to_datauri.py makes one from an image file.
+   trackUrl  Power Automate "GCS Track" flow URL (tools/set_flow_url.py fills it in). Counts card page views, saves and call, email and WhatsApp taps for the admin Analytics page.
+             Counts only: nothing identifying is written to the database (no IP address, browser string or visitor identity). Empty = nothing is counted.
    quirks    true = playful Great Teacher Onizuka wording and sample card (English only). Set false for plain professional wording. */
-var PAGE_VERSION = '2.9';
+var PAGE_VERSION = '3.0';
 var CONFIG = {
   cardUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/26/workflows/3cae8d3bf3a54d079a1bbe95bda554f6/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=1NFydb7KaYRQJZyj9UWp53kJkryIkDRn1I-GErgmOPQ',
   vcardUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/00/workflows/a58f4d59c3b448fab87803caf8179efe/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=5klYhy4Rf5XEa8N8CRIBc0jEjrgWvzryj5kP5UGJ9z4',    /* Power Automate "GCS vCard" flow (GET). Phones open this as a real .vcf and add the contact. */
@@ -245,6 +247,7 @@ var CONFIG = {
   noteMax: 500,
   brand: null,
   logo: '',
+  trackUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/13/workflows/eea98aad356c4848828b46696811305b/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=RqqdovA3aOmc5TU9MOWUGuurv8X33IO1azUxmZ_lJYc',
   quirks: false
 };
 
@@ -471,6 +474,7 @@ var QUIRKS = {
     state.card = cleanCard(card); state.mode = mode;
     $('loading').hidden = true; $('missing').hidden = true; $('view').hidden = false;
     applyStatic(); renderCard();
+    if (mode === 'server') track('view');
   }
   function showMissing() {
     $('loading').hidden = true; $('view').hidden = true; $('missing').hidden = false; applyStatic();
@@ -513,7 +517,33 @@ var QUIRKS = {
     Object.keys(o).forEach(function (k) { if (o[k]) p[k] = o[k]; });
     return CONFIG.vcardUrl + '&d=' + b64url(JSON.stringify(p));
   }
+  /* ---------- page analytics: counts only ----------
+     One small message per view or tap goes to the GCS Track flow (CONFIG.trackUrl): the card id, what happened, a coarse device class, the page language and how the page
+     was opened (the ?s= part of the link: q QR code, l shared link, e email signature, n NFC tag; o is the owner previewing and is never counted). The page puts no IP address, browser
+     string or visitor identity in the message and nothing identifying is written to Dataverse (the browser adds its usual request headers, which Power Automate keeps in
+     its run history for 28 days). Nothing is sent when Do Not Track or Global Privacy Control is on, for demo and link cards, or when no address is set,
+     and a failure never shows or changes anything on the page. */
+  var QS = new URLSearchParams(location.search), SRC = String(QS.get('s') || QS.get('amp;s') || '').toLowerCase();   // 'amp;s' = the link was copied HTML-escaped
+  if (!/^[a-z]$/.test(SRC)) SRC = '';      // only a single letter is a source (o = the owner previewing); anything else, like ?s=outlook, counts as direct
+  function deviceClass() { return IOS ? 'ios' : /Android/i.test(navigator.userAgent || '') ? 'android' : 'desktop'; }
+  function track(kind) {
+    try {
+      if (!CONFIG.trackUrl || state.mode !== 'server' || !state.cardId || SRC === 'o') return;
+      if (navigator.doNotTrack === '1' || window.doNotTrack === '1' || navigator.msDoNotTrack === '1' || navigator.globalPrivacyControl) return;
+      var body = JSON.stringify({ id: state.cardId, kind: kind, device: deviceClass(), lang: state.lang, source: SRC });
+      if (typeof fetch === 'function') {   // the same call as Get card (text/plain, so no preflight), but the answer is never read and no cookies go with it
+        try { fetch(CONFIG.trackUrl, { method: 'POST', mode: 'no-cors', credentials: 'omit', keepalive: true, headers: { 'Content-Type': 'text/plain' }, body: body }).catch(function () {}); return; } catch (e) {}
+      }
+      if (navigator.sendBeacon) navigator.sendBeacon(CONFIG.trackUrl, body);
+    } catch (e) {}
+  }
+  document.addEventListener('click', function (e) {   // calls, emails and WhatsApp chats started from the card (the buttons and the rows)
+    var a = e.target && e.target.closest && e.target.closest('a[href]'); if (!a) return;
+    var h = a.getAttribute('href') || '';
+    if (/^tel:/i.test(h)) track('call'); else if (/^mailto:/i.test(h)) track('email'); else if (/^https:\/\/wa\.me\//i.test(h)) track('whatsapp');
+  });
   function saveContact() {
+    track('save');
     var c = state.card, fname = fileName(c), blob = new Blob([vcard(c)], { type: 'text/vcard;charset=utf-8' });
     var link = vcardLink();
     if (link && (IOS || ANDROID)) { location.href = link; showCopyHint(); return; }

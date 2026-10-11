@@ -648,8 +648,9 @@ function(e){return e.hasOwnProperty("authorization_endpoint")&&e.hasOwnProperty(
    readerToken   Optional shared secret the endpoint checks.
    adminUrl      Link of the GCS Admin flow. The app only asks it "am I an admin?" to show a link to admin.html; the console itself is admin.html.
    readerCareful true only for the Claude worker: shows "Read again carefully" (slower, more accurate model). */
-var APP_VERSION = '2.9';
+var APP_VERSION = '3.0';
 var CHANGELOG = [
+  ['3.0', 'Oct 9, 2026', 'Analytics. The admin console now has a full Analytics page: page views, Save contact taps, leads and captures for the last 7, 30 or 90 days with the change since the period before, a day-by-day chart, how each card performs, how cards are opened (QR code, shared link, email signature or NFC tag), devices, people, companies and events, and CSV export. Views are counted by a small counter on the card page; what it saves holds no IP address, browser details or visitor identity, and it respects Do Not Track. Links the app makes now say how they will be used, so a QR scan can be told from a shared link; the NFC help has its own link to copy.'],
   ['2.9', 'Oct 9, 2026', 'The admin side moved to its own page: people on the admin list see an Admin link here that opens the admin console (team insights, cards, leads, captures, clean-up). Tidier screens too: plain wording, Settings no longer shows connection addresses, the set-up form asks for the essentials first, and My card groups its buttons under Share and Use your card.'],
   ['2.8', 'Oct 8, 2026', 'Read later: photos taken without signal are saved and read when you are back online. Better duplicate matching: same phone, or the same name at the same company. Team insights and counters on the Admin tab. Meeting background for Teams and Zoom with your QR. Optional photo on your published page. Arabic job title and company on the card page. The app now opens with no signal for up to 14 days after your last sign-in. Contacts > Sign out of this phone. Clearer message when publishing fails.'],
   ['2.7', 'Oct 5, 2026', 'Card page: visitor details go to the new GCS Get card flow (the old lead flow is retired). The card page now shows its version in the footer.'],
@@ -785,6 +786,9 @@ var CONFIG = {
   }
   /* ---------- web page link and QR ---------- */
   var cardLink = '', qrTicket = 0;
+  /* where a visit came from: added to the card link so the admin Analytics page can tell a QR scan from a shared link, the email signature and an NFC tag
+     (q, l, e, n; o is my own preview and is never counted). Only the short verified link carries it; a link that holds the whole card does not. */
+  function tagged(link, code) { return link && link.indexOf('?c=') > 0 ? link + '&s=' + code : link; }
   function b64u(bytes) { var x = ''; for (var i = 0; i < bytes.length; i++) x += String.fromCharCode(bytes[i]); return btoa(x).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
   function cardPayload(p) {
     var map = { f: p.first, l: p.last, a: p.ar, t: p.title, at: p.titleAr, o: p.company, ao: p.companyAr, d: p.department, m: p.phone, p: p.officePhone, e: p.email, u: p.web,
@@ -818,7 +822,7 @@ var CONFIG = {
       if (ticket !== qrTicket) return;
       cardLink = l; q.innerHTML = '';
       var shortLink = l.indexOf('?c=') > 0, size = shortLink ? 240 : 280;
-      new QRCode(q, { text: l, width: size, height: size, colorDark: '#0E3B43', colorLight: '#ffffff', correctLevel: shortLink ? QRCode.CorrectLevel.M : QRCode.CorrectLevel.L });
+      new QRCode(q, { text: tagged(l, 'q'), width: size, height: size, colorDark: '#0E3B43', colorLight: '#ffffff', correctLevel: shortLink ? QRCode.CorrectLevel.M : QRCode.CorrectLevel.L });
       $('qrCap').textContent = shortLink ? 'Point any phone camera here to open my verified card page.' : 'Point any phone camera here to open my card page.';
     });
   }
@@ -826,13 +830,13 @@ var CONFIG = {
     var b = e.target.closest('button'); if (!b || !profile) return;
     settings.qrMode = b.dataset.mode; store.set(K.settings, settings); drawMyQR();
   });
-  $('previewPageBtn').addEventListener('click', function () { if (cardLink) window.open(cardLink, '_blank', 'noopener'); else toast('One moment, then tap again.'); });
-  $('copyLinkBtn').addEventListener('click', function () { if (cardLink) copyText(cardLink, 'Page link copied'); else toast('One moment, then tap again.'); });
+  $('previewPageBtn').addEventListener('click', function () { if (cardLink) window.open(tagged(cardLink, 'o'), '_blank', 'noopener'); else toast('One moment, then tap again.'); });
+  $('copyLinkBtn').addEventListener('click', function () { if (cardLink) copyText(tagged(cardLink, 'l'), 'Page link copied'); else toast('One moment, then tap again.'); });
   if (navigator.share) $('shareLinkBtn').hidden = false;
   $('shareLinkBtn').addEventListener('click', function () {
     if (!cardLink) { toast('One moment, then tap again.'); return; }
     var name = profile ? (profile.first + ' ' + profile.last).trim() : 'My card';
-    navigator.share({ title: name, text: name + (profile && profile.company ? ', ' + profile.company : ''), url: cardLink }).catch(function () {});
+    navigator.share({ title: name, text: name + (profile && profile.company ? ', ' + profile.company : ''), url: tagged(cardLink, 'l') }).catch(function () {});
   });
   $('sigBtn').addEventListener('click', copySignature);
   $('nfcBtn').addEventListener('click', showNfcHelp);
@@ -2311,7 +2315,7 @@ var CONFIG = {
     if (!profile) return;
     var cv = $('myQR').querySelector('canvas'), qr = '';
     if (cv) { var small = document.createElement('canvas'); small.width = small.height = 168; var g = small.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 168, 168); g.drawImage(cv, 8, 8, 152, 152); qr = small.toDataURL('image/png'); }
-    var html = signatureHtml(profile, cardLink || '', qr), text = [(profile.first + ' ' + profile.last).trim(), profile.title, profile.company, profile.phone, profile.email, cardLink].filter(Boolean).join('\n');
+    var html = signatureHtml(profile, tagged(cardLink || '', 'e'), qr), text = [(profile.first + ' ' + profile.last).trim(), profile.title, profile.company, profile.phone, profile.email, tagged(cardLink, 'e')].filter(Boolean).join('\n');
     window.__lastSignature = html;
     function fallback() {
       var body = openSheet('Email signature');
@@ -2326,7 +2330,10 @@ var CONFIG = {
   function showNfcHelp() {
     var body = openSheet('Put my card on an NFC tag');
     body.appendChild(el('p', null, 'Any blank NFC tag or card works (a few dirhams each). Tap-to-open on iPhone and Android, no app needed on the other side.'));
-    var ol = el('ol'); ['Install a free tag writer app (for example NFC Tools).', 'In it choose Write, then Add a record, then URL.', 'Paste your page link (Copy page link above).', 'Hold the tag to the top of your phone until it says Written.', 'Optional: lock the tag so nobody can rewrite it.'].forEach(function (t) { ol.appendChild(el('li', null, t)); }); body.appendChild(ol);
+    var ol = el('ol'); ['Install a free tag writer app (for example NFC Tools).', 'In it choose Write, then Add a record, then URL.', 'Paste the link from the button below.', 'Hold the tag to the top of your phone until it says Written.', 'Optional: lock the tag so nobody can rewrite it.'].forEach(function (t) { ol.appendChild(el('li', null, t)); }); body.appendChild(ol);
+    var cp = el('button', 'btn btn-secondary btn-block', 'Copy link for the tag'); cp.type = 'button'; cp.style.marginTop = '12px';
+    cp.addEventListener('click', function () { if (cardLink.indexOf('?c=') > 0) copyText(tagged(cardLink, 'n'), 'Link copied'); else toast('Publish your card first, then try again.'); });   // only the short published link goes on a tag (the long link of an unpublished card does not fit on one); its own tag lets the Analytics page count taps on the tag
+    body.appendChild(cp);
     body.appendChild(el('p', 'muted', 'Use the web page QR mode so the tag keeps working when your title or number changes.'));
   }
   function fillFromMicrosoft() {

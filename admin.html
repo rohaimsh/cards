@@ -110,16 +110,48 @@ p,h1,h2,h3{margin:0}
 .problem p{color:var(--ink);margin-bottom:10px}
 
 /* team insights */
-.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
-@media (max-width:560px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px}
+@media (max-width:760px){.kpis{grid-template-columns:repeat(2,1fr)}}
 .kpi{border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;background:var(--surface)}
 .kpi b{display:block;font-size:26px;font-weight:600;line-height:1.1}
 .kpi span{font-size:13px;color:var(--ink-2)}
 .bars{display:block;width:100%;max-width:560px;height:auto;margin-top:8px}
-.bars rect{fill:var(--accent)} .bars text{fill:var(--ink-2);font-size:9px;font-family:inherit}
+.bars rect{fill:var(--accent)} .bars text{fill:var(--ink-2);font-size:10px;font-family:inherit}
 .rank{list-style:none;padding:0;margin:6px 0 0;font-size:14px;max-width:560px}
 .rank li{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--line)}
 .rank li span:last-child{color:var(--ink-2)}
+.btn-sm{min-height:34px;padding:5px 12px;font-size:14px}
+.tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0 2px}
+.tools .search{margin:0}
+.ctl{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--surface)}
+.seg button,.chips button{font:inherit;font-size:14px;border:0;background:none;color:var(--ink-2);padding:6px 14px;cursor:pointer}
+.seg button[aria-pressed="true"],.chips button[aria-pressed="true"]{background:var(--tab-active);color:var(--bg)}
+.chips{display:inline-flex;gap:4px;flex-wrap:wrap}
+.chips button{border:1px solid var(--line);border-radius:999px;padding:3px 12px;font-size:13px}
+.kpi .delta{display:block;font-style:normal;font-size:12px;margin-top:2px}
+.delta.up{color:var(--ok)} .delta.down{color:var(--err)} .delta.flat{color:var(--ink-2)}
+.kpi small{display:block;font-size:12px;color:var(--ink-2);margin-top:2px}
+.notice{border:1px solid var(--line);border-radius:var(--radius);padding:10px 14px;margin:12px 0;font-size:14px;background:var(--surface)}
+.notice.warn{border-color:var(--accent)}
+.panel{margin-top:14px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px} .grid2>*{min-width:0}
+@media (max-width:760px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.hbars{list-style:none;padding:0;margin:8px 0 0}
+.hbars li{margin:9px 0}
+.hb-top{display:flex;justify-content:space-between;gap:10px;font-size:14px}
+.hb-top span:first-child{min-width:0;overflow-wrap:anywhere}
+.hb-n{color:var(--ink-2);white-space:nowrap}
+.hb-bar{height:7px;background:var(--bg);border-radius:4px;margin-top:4px;overflow:hidden}
+.hb-bar i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.gap{height:14px}
+.cardstats li{align-items:flex-start}
+.nums{display:flex;gap:6px 14px;flex-wrap:wrap;font-size:13px;color:var(--ink-2);flex:none;justify-content:flex-end;max-width:62%}
+.nums b{color:var(--ink);font-size:15px}
+.bars.wide{max-width:none}
+.daily{margin-top:8px;overflow-x:auto} .daily summary{cursor:pointer;color:var(--ink-2);font-size:13px}
+.daily table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px} .daily th,.daily td{padding:4px 8px;text-align:right;border-bottom:1px solid var(--line)} .daily th:first-child,.daily td:first-child{text-align:left}
+@media (max-width:560px){.nums{max-width:none;justify-content:flex-start;flex:1 1 100%}}
 .foot{margin-top:30px;font-size:12px;color:var(--ink-2)}
 
 .toast{
@@ -247,7 +279,7 @@ function(e){return e.hasOwnProperty("authorization_endpoint")&&e.hasOwnProperty(
 <script>
 /* GCS admin console. The staff app (index.html) holds no admin code: its only trace is a link, shown after a server-side check.
    To add an admin feature: (1) add one case to the Switch in the GCS Admin flow (flows/build_solution.py, "GCS Admin"), (2) add one entry to SECTIONS below. */
-var ADMIN_VERSION = '2.9';
+var ADMIN_VERSION = '3.0';
 var CONFIG = {
   adminUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/11/workflows/cc6e22e8e4e2461e93bdf68d491970d4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=g1-6GnhhJPCD4NijqvFnxp0hmxk4Rlxn21G2Y39_-As',   /* link of the GCS Admin flow; tools/set_flow_url.py fills it in after the flow package is imported */
   msClientId: 'c098890f-66d9-43f0-a317-be3c4a4dd2a3',
@@ -256,7 +288,7 @@ var CONFIG = {
 (function () {
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }   /* text only, never HTML: lead and capture text comes from visitors */
-  function fmt(ts) { try { return new Date(ts).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); } catch (e) { return ts; } }
+  function fmt(ts) { try { var d = new Date(ts); return isNaN(d.getTime()) ? String(ts == null ? '' : ts) : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); } catch (e) { return String(ts == null ? '' : ts); } }
   var toastTimer = null;
   function toast(msg) { var t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2600); }
   $('ver').textContent = ADMIN_VERSION;
@@ -307,20 +339,25 @@ var CONFIG = {
     }).then(function (r) {
       if (r.status === 401) throw fail('signin', 'HTTP 401');
       if (r.status === 403) throw fail('notadmin', 'HTTP 403');
-      if (!r.ok) throw fail('http', 'HTTP ' + r.status);
+      if (!r.ok) { var bad = fail('http', 'HTTP ' + r.status); bad.status = r.status; throw bad; }
       return r.json();
     });
   }
 
   /* ---------- screens ---------- */
   var SCREENS = ['sLoading', 'sSignin', 'sNotAdmin', 'sProblem', 'console'];
-  function showScreen(id) { SCREENS.forEach(function (s) { $(s).hidden = s !== id; }); $('signOut').hidden = id === 'sLoading' || id === 'sProblem' || !account; }
+  function showScreen(id) {
+    SCREENS.forEach(function (s) { $(s).hidden = s !== id; }); $('signOut').hidden = id === 'sLoading' || id === 'sProblem' || !account;
+    if (id === 'sSignin' || id === 'sNotAdmin') { state.list = null; state.pending = null; state.gen++; anReset(); $('view').innerHTML = ''; }      // leaving the console: what was on screen goes with it
+  }
   function problem(msg) { $('problemMsg').textContent = msg; showScreen('sProblem'); }
 
   /* ---------- data shared by the sections: one list call, kept until Refresh ---------- */
   var state = { list: null, loadedAt: 0, pending: null, gen: 0, gone: { cards: {}, leads: {} } };
+  var an = { data: null, pending: null, gen: 0 };       // the analytics answer (loadAnalytics); gen moves on whenever an answer asked for earlier may be out of date
+  function anReset() { an.data = null; an.pending = null; an.gen++; }
   var redraw = null;      // the draw function of the section on screen, so a finished delete updates what the person sees
-  function invalidate() { state.list = null; state.pending = null; state.gen++; }
+  function invalidate() { state.list = null; state.pending = null; state.gen++; anReset(); }
   function dropGone(l) {   // rows deleted during this visit never come back from an older answer
     l.cards = l.cards.filter(function (c) { return !state.gone.cards[c.cr18b_staffcardid]; });
     l.leads = l.leads.filter(function (x) { return !state.gone.leads[x.cr18b_cardleadid]; });
@@ -340,16 +377,16 @@ var CONFIG = {
     state.pending = p; return p;
   }
   function forget(kind, id) {   // a delete the server confirmed: forget the row everywhere, now
-    state.gone[kind][id] = true;
+    state.gone[kind][id] = true; anReset();
     if (state.list) removeFrom(state.list[kind], kind === 'cards' ? 'cr18b_staffcardid' : 'cr18b_cardleadid', id);
     refreshNav(); if (redraw) redraw();
   }
 
   /* ---------- building blocks ---------- */
-  function head(title, count) { var h = el('div', 'head'); h.appendChild(el('h2', null, title)); if (count != null) h.appendChild(el('span', 'count', String(count))); return h; }
-  function filterBox(host, onChange) {
+  function head(title, count) { var h = el('div', 'head'); h.appendChild(el('h2', null, title)); if (count != null) { h.countEl = el('span', 'count', String(count)); h.appendChild(h.countEl); } return h; }
+  function filterBox(host, onChange, extra) {
     var q = el('input', 'search'); q.type = 'search'; q.placeholder = 'Filter'; q.setAttribute('aria-label', 'Filter the list');
-    q.addEventListener('input', onChange); host.appendChild(q); return q;
+    q.addEventListener('input', onChange); var bar = el('div', 'tools'); bar.appendChild(q); if (extra) bar.appendChild(extra); host.appendChild(bar); return q;
   }
   function matches(q, parts) { q = q.trim().toLowerCase(); return !q || parts.join(' ').toLowerCase().indexOf(q) >= 0; }
   /* a failed action: say why when it is the sign-in or the admin list, otherwise the generic message */
@@ -381,52 +418,276 @@ var CONFIG = {
   function dot(parts) { return parts.filter(Boolean).join(' · '); }
   function removeFrom(list, key, id) { for (var i = list.length - 1; i >= 0; i--) if (list[i][key] === id) list.splice(i, 1); }
   function svgEl(name, attrs) { var n = document.createElementNS('http://www.w3.org/2000/svg', name); Object.keys(attrs || {}).forEach(function (k) { n.setAttribute(k, attrs[k]); }); return n; }
-  function topN(map, n) { return Object.keys(map).map(function (k) { return [k, map[k]]; }).sort(function (a, b) { return b[1] - a[1] || (a[0] < b[0] ? -1 : 1); }).slice(0, n); }
 
-  /* ---------- section: Overview (team insights) ---------- */
-  function renderOverview(host, d) {
-    host.appendChild(head('Team insights'));
-    var now = Date.now(), DAY = 864e5, c7 = 0, c30 = 0, who = Object.create(null), cos = Object.create(null), perDay = Object.create(null);
-    function dayOf(ms) { var x = new Date(ms); return x.getFullYear() + '-' + (x.getMonth() < 9 ? '0' : '') + (x.getMonth() + 1) + '-' + (x.getDate() < 10 ? '0' : '') + x.getDate(); }   // the viewer's own calendar day
-    d.contacts.forEach(function (c) {
-      var t = Date.parse(c.cr18b_capturedat || c.createdon || ''); if (isNaN(t)) return;
-      var age = (now - t) / DAY;
-      if (age <= 7) c7++;
-      if (age <= 30) {
-        c30++;
-        var w = String(c.cr18b_capturedby || 'unknown').replace(/\s*<.*>\s*$/, '').trim() || 'unknown'; who[w] = (who[w] || 0) + 1;
-        var co = String(c.cr18b_company || '').trim(); if (co) cos[co] = (cos[co] || 0) + 1;
+  /* ---------- analytics data: leads, captures and page-view events of the last 180 days, loaded once and kept until Refresh ---------- */
+  var ANALYTICS_DAYS = 180, DAY_MS = 864e5;
+  function loadAnalytics() {
+    if (an.data) return Promise.resolve(an.data);
+    if (an.pending) return an.pending;
+    var mine = an.gen;
+    var p = adminApi('analytics', { days: ANALYTICS_DAYS }).then(function (j) {
+      if (!j || !j.ok) throw fail('http', 'bad answer');
+      if (mine !== an.gen) return loadAnalytics();                  // a Refresh or a delete happened meanwhile: this answer may be older than what the person has just done
+      an.data = { leads: j.leads || [], captures: j.captures || [], events: j.events || [], tracking: j.tracking !== false, cap: j.cap || 5000 };
+      $('updated').textContent = 'Loaded ' + fmt(Date.now());
+      return an.data;
+    }).then(function (d) { if (an.pending === p) an.pending = null; return d; }, function (e) {
+      if (an.pending === p) an.pending = null;
+      if (e && e.code === 'http' && e.status === 400) e = fail('oldflow', 'the admin flow does not know the analytics request');   // flows older than 1.2.0.0 answer 400 'unknown action'
+      throw e;
+    });
+    an.pending = p; return p;
+  }
+  function loadAnalyticsBundle() {
+    var listP = loadList().catch(function (e) { if (e && (e.code === 'signin' || e.code === 'notadmin')) throw e; return null; });     // the card names are a nicety: the page works without them
+    return Promise.all([listP, loadAnalytics()]).then(function (r) { return { list: r[0] || { cards: [], leads: [], contacts: [] }, listFailed: !r[0], an: r[1] }; });
+  }
+
+  /* ---------- analytics maths: local calendar days, the chosen range and the same-length period before it ---------- */
+  function ts(v) {
+    var s = String(v == null ? '' : v).trim(), m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s), x = m ? new Date(+m[1], +m[2] - 1, +m[3]).getTime() : Date.parse(s);   // a date with no time is that day on this computer's calendar
+    return isNaN(x) ? null : x;
+  }
+  function plausible(x) { return x !== null && x >= 946684800000 && x <= Date.now() + DAY_MS; }       // not before the year 2000, not more than a day ahead of this computer's clock
+  function midnight(ms) { var d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); }
+  function addDays(ms, n) { var d = new Date(ms); return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n).getTime(); }     // calendar days, so a day of 23 or 25 hours (a clock change) is still one day
+  function dayKey(ms) { var x = new Date(ms); return x.getFullYear() + '-' + (x.getMonth() < 9 ? '0' : '') + (x.getMonth() + 1) + '-' + (x.getDate() < 10 ? '0' : '') + x.getDate(); }
+  function windowOf(days) {
+    var now = Date.now(), today = midnight(now), end = addDays(today, 1), start = addDays(end, -days), pStart = addDays(start, -days);
+    /* today is only part of a day, so the period before is cut at the same time of day: half a day is compared with half a day, not with a whole one */
+    return { days: days, now: now, start: start, end: end, pStart: pStart, pEnd: addDays(pStart, days - 1) + (now - today) };
+  }
+  function inRange(x, a, b) { return x !== null && x >= a && x < b; }
+  function personName(v) { return String(v || '').replace(/\s*<.*>\s*$/, '').trim() || 'unknown'; }
+  function personOf(v) {       // the app writes "Name <e-mail>": people are told apart by the e-mail address when there is one, so two people called John Smith stay two
+    var s = String(v || ''), m = /^(.*?)\s*<([^>]*)>\s*$/.exec(s), name = (m ? m[1] : s).trim(), mail = m ? m[2].trim().toLowerCase() : '';
+    return { key: mail || name.toLowerCase() || 'unknown', name: name || mail || 'unknown' };
+  }
+  function isTap(k) { return k === 'call' || k === 'email' || k === 'whatsapp'; }
+  function capturedAt(c) { var a = ts(c.cr18b_capturedat); if (plausible(a)) return a; var b = ts(c.createdon); return plausible(b) ? b : null; }     // a bad or future captured date falls back to when the row was saved
+  function firstEvent(d) { var m = null; d.events.forEach(function (e) { var x = ts(e.createdon); if (x !== null && (m === null || x < m)) m = x; }); return m; }
+  function leadsIn(d, from, to) { return d.leads.filter(function (l) { return inRange(ts(l.createdon), from, to); }).length; }
+  function measure(d, from, to) {
+    var m = { views: 0, saves: 0, taps: 0, leads: 0, verified: 0, captured: 0, people: 0 }, who = Object.create(null);
+    d.events.forEach(function (e) { if (!inRange(ts(e.createdon), from, to)) return; var k = e.cr18b_kind; if (k === 'view') m.views++; else if (k === 'save') m.saves++; else if (isTap(k)) m.taps++; });
+    d.leads.forEach(function (l) { if (!inRange(ts(l.createdon), from, to)) return; m.leads++; if (/^verified/i.test(l.cr18b_cardverification || '')) m.verified++; });
+    d.captures.forEach(function (c) { if (!inRange(capturedAt(c), from, to)) return; m.captured++; who[personOf(c.cr18b_capturedby).key] = 1; });
+    m.people = Object.keys(who).length; return m;
+  }
+  function dailySeries(d, metric, w) {
+    var keys = [], idx = Object.create(null), vals = [], i;
+    for (i = 0; i < w.days; i++) { var t = addDays(w.start, i); keys.push({ key: dayKey(t), date: new Date(t) }); idx[dayKey(t)] = i; vals.push(0); }
+    function add(ms) { if (!inRange(ms, w.start, w.end)) return; var j = idx[dayKey(ms)]; if (j !== undefined) vals[j]++; }
+    if (metric === 'views' || metric === 'saves') d.events.forEach(function (e) { if (e.cr18b_kind === (metric === 'views' ? 'view' : 'save')) add(ts(e.createdon)); });
+    else if (metric === 'leads') d.leads.forEach(function (l) { add(ts(l.createdon)); });
+    else d.captures.forEach(function (c) { add(capturedAt(c)); });
+    return { keys: keys, vals: vals };
+  }
+  /* [[label, count], ...] most first. keyOf groups the rows (ignoring case and spacing), labelOf is what is shown (the commonest spelling of a group); rows with no key are only
+     counted: .total is every row in the range, .blank those with no key, so a share can be told against all of them */
+  function tally(rows, timeOf, keyOf, w, labelOf) {
+    var n = Object.create(null), seen = Object.create(null), total = 0, blank = 0;
+    rows.forEach(function (r) {
+      if (!inRange(timeOf(r), w.start, w.end)) return;
+      total++; var k = keyOf(r); if (k === null || k === undefined || k === '') { blank++; return; }
+      var g = String(k).toLowerCase().replace(/\s+/g, ' '), lab = String(labelOf ? labelOf(r) : k), s = seen[g] || (seen[g] = Object.create(null));
+      n[g] = (n[g] || 0) + 1; s[lab] = (s[lab] || 0) + 1;
+    });
+    var out = Object.keys(n).map(function (g) { var s = seen[g]; return [Object.keys(s).sort(function (a, b) { return s[b] - s[a] || (a < b ? -1 : a > b ? 1 : 0); })[0], n[g]]; });
+    out.sort(function (a, b) { return b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0); });
+    out.total = total; out.blank = blank; return out;
+  }
+  function cardRows(d, list, w, lFrom, capped) {
+    var by = Object.create(null), cards = Object.create(null);
+    function norm(id) { return String(id || '').toUpperCase(); }                                   // the same card whatever the case the link was typed in
+    list.cards.forEach(function (c) { if (c.cr18b_publicid) cards[norm(c.cr18b_publicid)] = c; });
+    function row(id) { var k = norm(id); return by[k] || (by[k] = { id: k, views: 0, saves: 0, taps: 0, leads: 0, leadsC: 0 }); }
+    d.events.forEach(function (e) { if (!e.cr18b_cardid || !inRange(ts(e.createdon), w.start, w.end)) return; var r = row(e.cr18b_cardid), k = e.cr18b_kind; if (k === 'view') r.views++; else if (k === 'save') r.saves++; else if (isTap(k)) r.taps++; });
+    d.leads.forEach(function (l) { var t = ts(l.createdon); if (!l.cr18b_cardid || !inRange(t, w.start, w.end)) return; var r = row(l.cr18b_cardid); r.leads++; if (t >= lFrom) r.leadsC++; });
+    list.cards.forEach(function (c) { if (c.cr18b_publicid && c.statecode !== 1) row(c.cr18b_publicid); });          // a published card nobody opened still belongs in the list
+    return Object.keys(by).map(function (k) {
+      var r = by[k], c = cards[k];
+      r.name = c ? (c.cr18b_name || '(no name)') : (capped ? '(card not in the list) ' : '(deleted card) ') + k; r.sub = c ? dot([c.cr18b_title, c.cr18b_owneremail]) : ''; r.owner = c ? c.cr18b_owneremail || '' : '';
+      r.rate = r.views && r.leadsC <= r.views ? r.leadsC / r.views : null;                           // only leads from the counted period, and never more leads than views
+      return r;
+    }).sort(function (a, b) { return b.views - a.views || b.leads - a.leads || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0); });
+  }
+  function pct(a, b) { return b ? (Math.round(1000 * a / b) / 10) + '%' : '–'; }
+  function shortDate(ms) { return new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }); }
+  function deltaOf(cur, prev) {
+    if (!cur && !prev) return { dir: 'flat', text: 'no change' };
+    if (!prev) return { dir: 'up', text: 'new' };
+    var p = Math.round(100 * (cur - prev) / prev);
+    return p === 0 ? { dir: 'flat', text: 'no change' } : { dir: p > 0 ? 'up' : 'down', text: (p > 0 ? '▲ ' : '▼ ') + Math.abs(p) + '%' };
+  }
+  function rateDelta(cur, prev) {                                  // the view-to-lead rate moves in percentage points
+    if (cur === null || prev === null) return null;
+    var p = Math.round((cur - prev) * 1000) / 10;
+    return p === 0 ? { dir: 'flat', text: 'no change' } : { dir: p > 0 ? 'up' : 'down', text: (p > 0 ? '▲ ' : '▼ ') + Math.abs(p) + ' pts' };
+  }
+  var SOURCE_LABEL = { q: 'QR code', l: 'Shared link', e: 'Email signature', n: 'NFC tag', x: 'Other or direct' };
+  var DEVICE_LABEL = { ios: 'iPhone or iPad', android: 'Android', desktop: 'Computer', other: 'Other' };
+  var LANG_LABEL = { en: 'English', ar: 'Arabic', x: 'Not stated' };
+  var CAPTURE_LABEL = { photo: 'Paper card photo', qr: 'Scanned QR code', manual: 'Typed in', lead: 'Accepted from a card page', 'import': 'Imported file' };
+
+  /* ---------- CSV: the same defanging as the app (a cell that starts like a formula is stored as text), a byte-order mark so Excel reads Arabic ---------- */
+  function csvCell(v) { var s = v == null ? '' : String(v); if (/^[=@\t\r]/.test(s) || (/^[+-]/.test(s) && !/^[+-]?[\d\s().-]+$/.test(s))) s = "'" + s; return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  function downloadCsv(name, rows) {
+    var text = '﻿' + rows.map(function (r) { return r.map(csvCell).join(','); }).join('\r\n') + '\r\n';
+    var url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' })), a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 3000);
+  }
+  function csvName(slug) { return 'gcs-' + slug + '-' + dayKey(Date.now()) + '.csv'; }
+  function exportButton(slug, rowsOf, label) {
+    var b = el('button', 'btn btn-secondary btn-sm', label || 'Export CSV'); b.type = 'button'; if (!label) b.title = 'Exports the rows shown now, after the filter';
+    b.addEventListener('click', function () { downloadCsv(csvName(slug), rowsOf()); }); return b;
+  }
+
+  /* ---------- section: Analytics ---------- */
+  var rangeDays = 30, metricNow = 'views';
+  try { var savedRange = +localStorage.getItem('gcs_admin_range'); if (savedRange === 7 || savedRange === 30 || savedRange === 90) rangeDays = savedRange; } catch (e) {}
+  var deltaHint = '';
+  function kpi(value, label, delta, note) {
+    var div = el('div', 'kpi'); div.appendChild(el('b', null, String(value))); div.appendChild(el('span', null, label));
+    if (delta) { var de = el('em', 'delta ' + delta.dir, delta.text); de.title = deltaHint; div.appendChild(de); }
+    if (note) div.appendChild(el('small', null, note));
+    return div;
+  }
+  function notice(title, text, cls) { var n = el('div', 'notice' + (cls ? ' ' + cls : '')); n.appendChild(el('b', null, title)); n.appendChild(el('span', null, ' ' + text)); return n; }
+  /* shares are told against `total` (every row in the range) when it is given, otherwise against the rows listed; `note` says what the list leaves out */
+  function barList(items, empty, labels, total, note) {                // [[key, count], ...] already sorted
+    var ul = el('ul', 'hbars'), whole = total || items.reduce(function (s, x) { return s + x[1]; }, 0), max = items.length ? items[0][1] : 1;
+    if (!items.length) { ul.appendChild(el('li', 'csub', empty)); return ul; }
+    items.forEach(function (it) {
+      var li = el('li'), top = el('div', 'hb-top'), name = labels && Object.prototype.hasOwnProperty.call(labels, it[0]) ? labels[it[0]] : it[0]; top.appendChild(el('span', null, name));
+      top.appendChild(el('span', 'hb-n', it[1] + ' · ' + Math.round(100 * it[1] / whole) + '%')); li.appendChild(top);
+      var bar = el('div', 'hb-bar'), fill = el('i'); fill.style.width = Math.max(3, Math.round(100 * it[1] / max)) + '%'; bar.appendChild(fill); li.appendChild(bar); ul.appendChild(li);
+    });
+    if (note) ul.appendChild(el('li', 'csub', note));
+    return ul;
+  }
+  function topNote(all, many, none) {         // what a top-8 list leaves out, so the shares are honest
+    var t = []; if (all.length > 8) t.push('Top 8 of ' + all.length + ' ' + many + '.'); if (all.blank) t.push(all.blank + (all.blank === 1 ? ' contact has ' : ' contacts have ') + none + '.');
+    return t.join(' ');
+  }
+  function panel(title, sub) { var p = el('section', 'box panel'); p.appendChild(el('h3', 'h3', title)); if (sub) p.appendChild(el('p', 'csub', sub)); return p; }
+  function trendChart(vals, keys, label, width) {
+    var n = vals.length, W = Math.max(280, Math.min(640, width || 640)), H = 150, base = 122, gap = n > 60 ? 1 : 3, bw = Math.max(2, W / n - gap), max = Math.max.apply(null, vals.concat([1])), step = n <= 7 ? 1 : n <= 30 ? 5 : 15, total = vals.reduce(function (s, v) { return s + v; }, 0);
+    var peak = total ? vals.indexOf(Math.max.apply(null, vals)) : -1;
+    var svg = svgEl('svg', { 'class': 'bars wide', viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': label + ': ' + total + ' in the last ' + n + ' days' + (peak >= 0 ? '. Busiest day ' + shortDate(keys[peak].date.getTime()) + ': ' + vals[peak] : '') + '. The numbers are in the table below.' });
+    vals.forEach(function (v, i) {
+      var h = Math.round((base - 16) * v / max), x = i * (W / n) + gap / 2, r = svgEl('rect', { x: x, y: base - h, width: bw, height: Math.max(h, v ? 2 : 0), rx: 2 }), tt = svgEl('title');
+      tt.textContent = keys[i].date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ': ' + v; r.appendChild(tt); svg.appendChild(r);
+      if (n <= 14 && v) { var t1 = svgEl('text', { x: x + bw / 2, y: base - h - 4, 'text-anchor': 'middle' }); t1.textContent = String(v); svg.appendChild(t1); }
+      if (i % step === 0 || i === n - 1) {
+        var d = keys[i].date, first = i === 0 || d.getDate() === 1, t2 = svgEl('text', { x: x + bw / 2, y: 142, 'text-anchor': i === 0 ? 'start' : 'middle' }); if (i === 0) t2.setAttribute('x', x);
+        t2.textContent = first ? d.getDate() + ' ' + d.toLocaleDateString(undefined, { month: 'short' }) : String(d.getDate()); svg.appendChild(t2);
       }
-      var k = dayOf(t); perDay[k] = (perDay[k] || 0) + 1;
     });
-    var active = d.cards.filter(function (c) { return c.statecode !== 1; }).length;
-    var verified = d.leads.filter(function (l) { return /^verified/i.test(l.cr18b_cardverification || ''); }).length;
-    var kp = el('div', 'kpis'); kp.id = 'kpis';
-    [[active, 'published cards'], [d.leads.length, 'leads waiting'], [c7, 'contacts, last 7 days'], [c30, 'contacts, last 30 days'],
-     [Object.keys(who).length, 'people capturing'], [(d.leads.length ? Math.round(100 * verified / d.leads.length) : 0) + '%', 'leads from verified cards']].forEach(function (k) {
-      var div = el('div', 'kpi'); div.appendChild(el('b', null, String(k[0]))); div.appendChild(el('span', null, k[1])); kp.appendChild(div);
+    return svg;
+  }
+  function dailyTable(d, w, on) {               // the same numbers as the chart and the daily CSV, readable on a phone and by a screen reader
+    var det = el('details', 'daily'); det.appendChild(el('summary', null, 'Show the numbers day by day'));
+    var cols = (on ? [['Views', 'views'], ['Saves', 'saves']] : []).concat([['Leads', 'leads'], ['Captured', 'captured']]), s = {}, t = el('table'), hr = el('tr'), i;
+    cols.forEach(function (c) { s[c[1]] = dailySeries(d, c[1], w); });
+    hr.appendChild(el('th', null, 'Day')); cols.forEach(function (c) { hr.appendChild(el('th', null, c[0])); }); t.appendChild(hr);
+    for (i = w.days - 1; i >= 0; i--) {
+      var tr = el('tr'); tr.appendChild(el('td', null, s[cols[0][1]].keys[i].date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })));
+      cols.forEach(function (c) { tr.appendChild(el('td', null, String(s[c[1]].vals[i]))); }); t.appendChild(tr);
+    }
+    det.appendChild(t); return det;
+  }
+  function renderAnalytics(host, bundle) {
+    var d = bundle.an, list = bundle.list, w = windowOf(rangeDays), on = d.tracking, cur = measure(d, w.start, w.end), prev = measure(d, w.pStart, w.pEnd);
+    /* nothing was counted before the first page view: a period before that is not "no views", it is "not counted", and a lead from those days has no view to compare with */
+    var since = on ? firstEvent(d) : null, sinceKnown = since !== null && since > w.now - (ANALYTICS_DAYS - 2) * DAY_MS && d.events.length < d.cap;
+    var covers = !sinceKnown || since <= w.pStart, lFrom = sinceKnown ? Math.max(w.start, since) : w.start;
+    deltaHint = 'Compared with the ' + w.days + ' days before, up to the same time of day';
+    if (!on && (metricNow === 'views' || metricNow === 'saves')) metricNow = 'captured';
+    function redraw() {
+      var a = document.activeElement, sel = a && a.dataset && a.dataset.days ? '[data-days="' + a.dataset.days + '"]' : a && a.dataset && a.dataset.metric ? '[data-metric="' + a.dataset.metric + '"]' : '';
+      host.innerHTML = ''; renderAnalytics(host, bundle); var again = sel && host.querySelector(sel); if (again) again.focus();       // the buttons are rebuilt: keep the keyboard where it was
+    }
+    var hd = el('div', 'head'); hd.appendChild(el('h2', null, 'Analytics'));
+    var ctl = el('div', 'ctl'), seg = el('div', 'seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Date range');
+    [7, 30, 90].forEach(function (n) {
+      var b = el('button', null, n + ' days'); b.type = 'button'; b.setAttribute('aria-pressed', n === rangeDays ? 'true' : 'false'); b.dataset.days = String(n);
+      b.addEventListener('click', function () { rangeDays = n; try { localStorage.setItem('gcs_admin_range', String(n)); } catch (e) {} redraw(); }); seg.appendChild(b);
     });
+    ctl.appendChild(seg); hd.appendChild(ctl); host.appendChild(hd);
+    host.appendChild(el('p', 'csub', 'The last ' + w.days + ' days (' + shortDate(w.start) + ' to today), compared with the ' + w.days + ' days before, up to the same time of day.' + (sinceKnown ? ' Page views have been counted since ' + shortDate(since) + '.' : '')));
+
+    if (!on) host.appendChild(notice('Page views are not available.', 'Counting is not set up yet (the Card Events table or the GCS Track flow is missing: see docs/ANALYTICS.md), or the page views could not be read this time: try Refresh. Everything else on this page is live.', 'warn'));
+    else if (!d.events.length) host.appendChild(notice('No page views yet.', 'Views are counted from the first visit after counting was switched on.'));
+    else if (d.events.length >= d.cap) host.appendChild(notice('Page views are cut off at ' + d.cap + '.', 'Only the latest ' + d.cap + ' events are loaded, so older days and the comparison period may read low.', 'warn'));
+    if (d.leads.length >= d.cap || d.captures.length >= d.cap) host.appendChild(notice('Leads or captures are cut off at ' + d.cap + '.', 'Only the latest ' + d.cap + ' of each are loaded, so the oldest days may read low.', 'warn'));
+    if (bundle.listFailed) host.appendChild(notice('The card list could not be loaded.', 'Cards show by their id, and the published cards and leads waiting numbers are missing. Try Refresh.', 'warn'));
+    else if (list.cards.length >= 500) host.appendChild(notice('The card list stops at 500 cards.', 'Cards after the first 500 show as "(card not in the list)" with their id.', 'warn'));
+
+    var rate = on && cur.views && lFromCount() <= cur.views ? lFromCount() / cur.views : null, pRate = on && covers && prev.views && prev.leads <= prev.views ? prev.leads / prev.views : null;
+    function lFromCount() { return leadsIn(d, lFrom, w.end); }
+    function evDelta(c, p) { if (!on || !d.events.length) return null; return covers ? deltaOf(c, p) : { dir: 'flat', text: 'counted since ' + shortDate(since) }; }
+    var active = list.cards.filter(function (c) { return c.cr18b_publicid && c.statecode !== 1; }).length, kp = el('div', 'kpis'); kp.id = 'kpis';
+    [kpi(on ? cur.views : '–', 'page views', evDelta(cur.views, prev.views)),
+     kpi(on ? cur.saves : '–', 'save contact taps', evDelta(cur.saves, prev.saves), on && cur.taps ? cur.taps + ' calls, emails or chats' : ''),
+     kpi(cur.leads, 'leads received', deltaOf(cur.leads, prev.leads), cur.leads ? Math.round(100 * cur.verified / cur.leads) + '% from verified cards' : ''),
+     kpi(on && rate !== null ? pct(lFromCount(), cur.views) : '–', 'views that became a lead', on ? rateDelta(rate, pRate) : null, on && cur.views && lFromCount() > cur.views ? 'more leads than counted views' : ''),
+     kpi(cur.captured, 'contacts captured', deltaOf(cur.captured, prev.captured)),
+     kpi(cur.people, 'people capturing', deltaOf(cur.people, prev.people)),
+     kpi(bundle.listFailed ? '–' : active, 'published cards'), kpi(bundle.listFailed ? '–' : list.leads.length, 'leads waiting for review', null, list.leads.length >= 500 ? 'the list shows at most 500' : '')].forEach(function (k) { kp.appendChild(k); });
     host.appendChild(kp);
-    host.appendChild(el('h3', 'h3', 'Contacts captured per day (last 14 days)'));
-    var days = [], max = 1, i;
-    for (i = 13; i >= 0; i--) { var dt = new Date(now - i * DAY), key = dayOf(dt.getTime()), n = perDay[key] || 0; days.push([key, n, (i === 13 || dt.getDate() === 1) ? dt.getDate() + ' ' + dt.toLocaleDateString(undefined, { month: 'short' }) : String(dt.getDate())]); max = Math.max(max, n); }
-    var svg = svgEl('svg', { 'class': 'bars', viewBox: '0 0 308 96', role: 'img', 'aria-label': 'Contacts captured per day over the last 14 days' });
-    days.forEach(function (x, j) {
-      var h = Math.round(58 * x[1] / max), bx = 4 + j * 22;
-      svg.appendChild(svgEl('rect', { x: bx, y: 70 - h, width: 16, height: Math.max(h, x[1] ? 2 : 0), rx: 2 }));
-      if (x[1]) { var t1 = svgEl('text', { x: bx + 8, y: 66 - h, 'text-anchor': 'middle' }); t1.textContent = String(x[1]); svg.appendChild(t1); }
-      if (j % 2 === 0 || j === 13) { var t2 = svgEl('text', { x: bx + 8, y: 86, 'text-anchor': j === 0 ? 'start' : 'middle' }); if (j === 0) t2.setAttribute('x', bx); t2.textContent = String(x[2]); svg.appendChild(t2); }
+
+    var tp = el('section', 'box panel'), th = el('div', 'head'); th.appendChild(el('h3', 'h3', 'Day by day'));
+    var chips = el('div', 'chips'); chips.setAttribute('role', 'group'); chips.setAttribute('aria-label', 'What to chart');
+    [['views', 'Views', on], ['saves', 'Save taps', on], ['leads', 'Leads', true], ['captured', 'Captured', true]].forEach(function (m) {
+      if (!m[2]) return; var b = el('button', null, m[1]); b.type = 'button'; b.dataset.metric = m[0]; b.setAttribute('aria-pressed', m[0] === metricNow ? 'true' : 'false');
+      b.addEventListener('click', function () { metricNow = m[0]; redraw(); }); chips.appendChild(b);
     });
-    host.appendChild(svg);
-    [['Who is capturing (last 30 days)', who, 'Nobody has captured in the last 30 days.', 'rankWho'], ['Companies met (last 30 days)', cos, 'No companies yet.', 'rankCo']].forEach(function (r) {
-      host.appendChild(el('h3', 'h3', r[0]));
-      var ul = el('ul', 'rank'); ul.id = r[3]; var top = topN(r[1], 5);
-      if (!top.length) ul.appendChild(el('li', 'csub', r[2]));
-      top.forEach(function (t) { var li = el('li'); li.appendChild(el('span', null, t[0])); li.appendChild(el('span', null, String(t[1]))); ul.appendChild(li); });
-      host.appendChild(ul);
-    });
-    if (d.contacts.length >= 200) host.appendChild(el('p', 'csub', 'Counts use the latest 200 captures, so a very busy month may show lower than the real total.'));
-    if (d.cards.length >= 500 || d.leads.length >= 500) host.appendChild(el('p', 'csub', 'The cards and leads lists stop at 500 rows each, so those counts may be lower than the real totals.'));
+    th.appendChild(chips); tp.appendChild(th);
+    var sr = dailySeries(d, metricNow, w), names = { views: 'Page views per day', saves: 'Save contact taps per day', leads: 'Leads per day', captured: 'Contacts captured per day' };
+    tp.appendChild(trendChart(sr.vals, sr.keys, names[metricNow], (host.clientWidth || 640) - 34)); tp.appendChild(dailyTable(d, w, on)); host.appendChild(tp);
+
+    var cards = cardRows(d, list, w, lFrom, list.cards.length >= 500 || bundle.listFailed), cp = panel('Cards', on ? 'Views, saves, taps (call, email, WhatsApp) and leads for each published card in this range. Saves and taps count button presses, not what the visitor did next.' : 'Leads for each published card in this range. Views need page counting.');
+    var tools = el('div', 'tools'); tools.appendChild(exportButton('card-performance-' + w.days + 'd', function () {
+      return [['Card', 'Owner email', 'Public id', 'Views', 'Saves', 'Call, email or WhatsApp taps', 'Leads', 'Lead rate %']].concat(cards.map(function (r) { return [r.name, r.owner, r.id, on ? r.views : '', on ? r.saves : '', on ? r.taps : '', r.leads, on && r.rate !== null ? Math.round(r.rate * 1000) / 10 : '']; }));
+    }, 'Export card performance'));
+    tools.appendChild(exportButton('daily-totals-' + w.days + 'd', function () {
+      var a = dailySeries(d, 'views', w), b = dailySeries(d, 'saves', w), c = dailySeries(d, 'leads', w), e = dailySeries(d, 'captured', w);
+      return [['Date', 'Views', 'Saves', 'Leads', 'Contacts captured']].concat(a.keys.map(function (k, i) { return [k.key, on ? a.vals[i] : '', on ? b.vals[i] : '', c.vals[i], e.vals[i]]; }));
+    }, 'Export daily totals')); cp.appendChild(tools);
+    var cl = el('ul', 'rows cardstats'); cl.id = 'cardStats'; cp.appendChild(cl);
+    var showAll = false, more = el('button', 'btn btn-secondary btn-sm', ''); more.type = 'button'; more.id = 'cardsMore';
+    function drawCards() {
+      cl.innerHTML = ''; var shown = showAll ? cards : cards.slice(0, 10);
+      shown.forEach(function (r) {
+        var li = el('li'), main = el('div', 'main'); main.appendChild(el('div', 'cname', r.name)); if (r.sub) main.appendChild(el('div', 'csub', r.sub)); li.appendChild(main);
+        var nums = el('div', 'nums'); [[on ? r.views : '–', r.views === 1 ? 'view' : 'views'], [on ? r.saves : '–', r.saves === 1 ? 'save' : 'saves'], [on ? r.taps : '–', r.taps === 1 ? 'tap' : 'taps'], [r.leads, r.leads === 1 ? 'lead' : 'leads'], [on && r.rate !== null ? pct(r.leadsC, r.views) : '–', 'lead rate']].forEach(function (n) { var s = el('span'); s.appendChild(el('b', null, String(n[0]))); s.appendChild(document.createTextNode(' ' + n[1])); nums.appendChild(s); });
+        li.appendChild(nums); cl.appendChild(li);
+      });
+      if (!cards.length) cl.appendChild(el('li', 'empty', 'No published cards yet.'));
+      more.hidden = cards.length <= 10; more.textContent = showAll ? 'Show the top 10 only' : 'Show all ' + cards.length + ' cards';
+    }
+    more.addEventListener('click', function () { showAll = !showAll; drawCards(); }); drawCards(); cp.appendChild(more); host.appendChild(cp);
+
+    var views = d.events.filter(function (e) { return e.cr18b_kind === 'view'; }), grid = el('div', 'grid2'), viewTime = function (e) { return ts(e.createdon); };
+    var p1 = panel('How cards are opened', 'Page views by how the page was reached.'); p1.id = 'panelSources';
+    p1.appendChild(barList(on ? tally(views, viewTime, function (e) { return e.cr18b_source || 'x'; }, w) : [], on ? 'No views in this range.' : 'Needs page counting.', SOURCE_LABEL)); grid.appendChild(p1);
+    var p2 = panel('Devices and language', 'Page views in this range.'); p2.id = 'panelDevices';
+    p2.appendChild(barList(on ? tally(views, viewTime, function (e) { return e.cr18b_device || 'other'; }, w) : [], on ? 'No views in this range.' : 'Needs page counting.', DEVICE_LABEL));
+    p2.appendChild(el('div', 'gap')); p2.appendChild(barList(on ? tally(views, viewTime, function (e) { return e.cr18b_lang || 'x'; }, w) : [], '', LANG_LABEL)); grid.appendChild(p2);
+    var pe = tally(d.captures, capturedAt, function (c) { return personOf(c.cr18b_capturedby).key; }, w, function (c) { return personOf(c.cr18b_capturedby).name; });
+    var p3 = panel('Who is capturing', 'Contacts captured by person, as a share of all contacts captured in this range.'); p3.id = 'panelPeople';
+    p3.appendChild(barList(pe.slice(0, 8), 'Nobody has captured in this range.', null, pe.total, topNote(pe, 'people', 'no name'))); grid.appendChild(p3);
+    var pc = tally(d.captures, capturedAt, function (c) { return String(c.cr18b_company || '').trim(); }, w);
+    var p4 = panel('Companies met', 'Contacts captured by company, as a share of all contacts captured in this range.'); p4.id = 'panelCompanies';
+    p4.appendChild(barList(pc.slice(0, 8), 'No companies in this range.', null, pc.total, topNote(pc, 'companies', 'no company'))); grid.appendChild(p4);
+    var pv = tally(d.captures, capturedAt, function (c) { return String(c.cr18b_metat || '').trim(); }, w);
+    var p5 = panel('Where contacts were met', 'The event or meeting typed when capturing, as a share of all contacts captured in this range.'); p5.id = 'panelEvents';
+    p5.appendChild(barList(pv.slice(0, 8), 'No event names in this range.', null, pv.total, topNote(pv, 'events', 'no event name'))); grid.appendChild(p5);
+    var p6 = panel('How contacts are captured', 'Paper card photo, QR code, typed in, accepted from a card page.'); p6.id = 'panelMethods';
+    p6.appendChild(barList(tally(d.captures, capturedAt, function (c) { return c.cr18b_source || 'manual'; }, w), 'No captures in this range.', CAPTURE_LABEL)); grid.appendChild(p6);
+    host.appendChild(grid);
+    host.appendChild(el('p', 'csub', 'Days follow this browser’s time zone. Page views hold no personal data: the table keeps no IP address, browser string or visitor identity.'));
   }
 
   /* ---------- section: Cards ---------- */
@@ -435,10 +696,14 @@ var CONFIG = {
     host.appendChild(el('p', 'csub', 'Deleting a card is permanent: if its owner publishes again they get a new public link, so a printed QR code for the old one stops working.'));
     if (d0.cards.length >= 500) host.appendChild(el('p', 'csub', 'The list stops at 500 cards.'));
     var ul = el('ul', 'rows'); ul.id = 'adminCards';
-    var q = filterBox(host, function () { draw(); }); host.appendChild(ul);
+    var shownNow = [];
+    var q = filterBox(host, function () { draw(); }, exportButton('cards', function () {
+      return [['Name', 'Title', 'Company', 'Owner email', 'Public id', 'Published at', 'Status']].concat(shownNow.map(function (c) { return [c.cr18b_name, c.cr18b_title, c.cr18b_company, c.cr18b_owneremail, c.cr18b_publicid, c.cr18b_publishedat, c.statecode === 1 ? 'inactive' : 'active']; }));
+    })); host.appendChild(ul);
     function draw() {
-      var d = state.list || d0; ul.innerHTML = ''; h.lastChild.textContent = String(d.cards.length);
+      var d = state.list || d0; ul.innerHTML = ''; h.countEl.textContent = String(d.cards.length);
       var shown = d.cards.filter(function (c) { return matches(q.value, [c.cr18b_name, c.cr18b_title, c.cr18b_company, c.cr18b_owneremail, c.cr18b_publicid]); });
+      shownNow = shown;
       shown.forEach(function (c) {
         ul.appendChild(row(c.cr18b_name || '(no name)',
           dot([c.cr18b_title, c.cr18b_company, c.cr18b_owneremail, c.cr18b_publicid ? 'id ' + c.cr18b_publicid : 'no id', c.cr18b_publishedat ? fmt(c.cr18b_publishedat) : '']),
@@ -456,10 +721,14 @@ var CONFIG = {
     var h = head('Leads waiting', d0.leads.length); host.appendChild(h);
     if (d0.leads.length >= 500) host.appendChild(el('p', 'csub', 'The list stops at 500 leads.'));
     var ul = el('ul', 'rows'); ul.id = 'adminLeads';
-    var q = filterBox(host, function () { draw(); }); host.appendChild(ul);
+    var shownNow = [];
+    var q = filterBox(host, function () { draw(); }, exportButton('leads', function () {
+      return [['Name', 'Company', 'Email', 'For (owner)', 'Verification', 'Received']].concat(shownNow.map(function (l) { return [l.cr18b_name, l.cr18b_company, l.cr18b_email, l.cr18b_owneremail, l.cr18b_cardverification, l.createdon]; }));
+    })); host.appendChild(ul);
     function draw() {
-      var d = state.list || d0; ul.innerHTML = ''; h.lastChild.textContent = String(d.leads.length);
+      var d = state.list || d0; ul.innerHTML = ''; h.countEl.textContent = String(d.leads.length);
       var shown = d.leads.filter(function (l) { return matches(q.value, [l.cr18b_name, l.cr18b_company, l.cr18b_email, l.cr18b_owneremail]); });
+      shownNow = shown;
       shown.forEach(function (l) {
         ul.appendChild(row(l.cr18b_name || '(no name)',
           dot([l.cr18b_company, l.cr18b_email, 'for ' + (l.cr18b_owneremail || '?'), l.createdon ? fmt(l.createdon) : '']),
@@ -476,10 +745,14 @@ var CONFIG = {
   function renderCaptures(host, d0) {
     host.appendChild(head('Recent captures', d0.contacts.length));
     var ul = el('ul', 'rows'); ul.id = 'adminContacts';
-    var q = filterBox(host, function () { draw(); }); host.appendChild(ul);
+    var shownNow = [];
+    var q = filterBox(host, function () { draw(); }, exportButton('captures', function () {
+      return [['Name', 'Company', 'Captured by', 'Captured at']].concat(shownNow.map(function (c) { return [c.cr18b_name, c.cr18b_company, personName(c.cr18b_capturedby), c.cr18b_capturedat]; }));
+    })); host.appendChild(ul);
     function draw() {
       var d = state.list || d0; ul.innerHTML = '';
       var shown = d.contacts.filter(function (c) { return matches(q.value, [c.cr18b_name, c.cr18b_company, c.cr18b_capturedby]); });
+      shownNow = shown;
       shown.forEach(function (c) { ul.appendChild(row(c.cr18b_name || '(no name)', dot([c.cr18b_company, c.cr18b_capturedby, c.cr18b_capturedat ? fmt(c.cr18b_capturedat) : '']))); });
       if (!shown.length) ul.appendChild(el('li', 'empty', d.contacts.length ? 'No captures match.' : 'Nothing captured yet.'));
     }
@@ -514,7 +787,7 @@ var CONFIG = {
 
   /* ---------- the sections: add an entry here for a new admin feature ---------- */
   var SECTIONS = [
-    { id: 'overview', title: 'Overview', load: loadList, render: renderOverview },
+    { id: 'analytics', title: 'Analytics', load: loadAnalyticsBundle, render: renderAnalytics },
     { id: 'cards', title: 'Cards', load: loadList, render: renderCards, count: function (d) { return d.cards.length; } },
     { id: 'leads', title: 'Leads', load: loadList, render: renderLeads, count: function (d) { return d.leads.length; } },
     { id: 'captures', title: 'Captures', load: loadList, render: renderCaptures, count: function (d) { return d.contacts.length; } },
@@ -537,6 +810,10 @@ var CONFIG = {
     var box = el('div', 'problem');
     if (e && e.code === 'signin') { box.appendChild(el('p', null, 'Your sign-in ended. Sign in again to continue.')); var s = el('button', 'btn btn-primary', 'Sign in'); s.type = 'button'; s.addEventListener('click', function () { start(true); }); box.appendChild(s); return box; }
     if (e && e.code === 'notadmin') { box.appendChild(el('p', null, 'This account is not on the admin list any more.')); return box; }
+    if (e && e.code === 'oldflow') {
+      box.appendChild(el('p', null, 'The admin flow is older than this page: it does not know the Analytics request yet. Import flows 1.2.0.0 (docs/ANALYTICS.md). Cards, Leads, Captures and Maintenance work as before.'));
+      var o = el('button', 'btn btn-secondary', 'Open Cards'); o.type = 'button'; o.addEventListener('click', function () { location.hash = '#cards'; }); box.appendChild(o); return box;
+    }
     box.appendChild(el('p', null, 'Could not load this. Check the connection and try again.'));
     var r = el('button', 'btn btn-secondary', 'Try again'); r.type = 'button'; r.addEventListener('click', retry); box.appendChild(r); return box;
   }
