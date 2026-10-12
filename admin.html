@@ -103,6 +103,14 @@ p,h1,h2,h3{margin:0}
 .mark{width:15px;height:18px;vertical-align:-3px;margin-right:8px;fill:var(--accent)}
 .pill{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:500;border:1px solid var(--line);color:var(--ink-2);vertical-align:1px}
 .pill.ok{color:var(--ok);border-color:var(--ok)}
+.pill.bad{color:var(--err);border-color:var(--err)}
+.pill.late{color:var(--ink);border-color:var(--accent)}
+.pill.none{color:var(--ink-2);border-style:dashed}
+.tools .search.sel{width:auto;max-width:none}
+.box ul.rows{padding-left:0;color:inherit;font-size:inherit}
+.rows.wrap .csub{white-space:normal;overflow:visible;text-overflow:clip}
+#cleanArea{margin-top:12px}
+label.csub{display:block;margin-top:10px}
 .box ul{margin:6px 0 0;padding-left:20px;color:var(--ink-2);font-size:15px}
 .box li{margin:5px 0}
 .warn{border:1px solid var(--err);border-radius:var(--radius);padding:10px 12px;margin:14px 0;font-size:14px;color:var(--ink)}
@@ -279,7 +287,7 @@ function(e){return e.hasOwnProperty("authorization_endpoint")&&e.hasOwnProperty(
 <script>
 /* GCS admin console. The staff app (index.html) holds no admin code: its only trace is a link, shown after a server-side check.
    To add an admin feature: (1) add one case to the Switch in the GCS Admin flow (flows/build_solution.py, "GCS Admin"), (2) add one entry to SECTIONS below. */
-var ADMIN_VERSION = '3.0';
+var ADMIN_VERSION = '3.1';
 var CONFIG = {
   adminUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/11/workflows/cc6e22e8e4e2461e93bdf68d491970d4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=g1-6GnhhJPCD4NijqvFnxp0hmxk4Rlxn21G2Y39_-As',   /* link of the GCS Admin flow; tools/set_flow_url.py fills it in after the flow package is imported */
   msClientId: 'c098890f-66d9-43f0-a317-be3c4a4dd2a3',
@@ -339,28 +347,42 @@ var CONFIG = {
     }).then(function (r) {
       if (r.status === 401) throw fail('signin', 'HTTP 401');
       if (r.status === 403) throw fail('notadmin', 'HTTP 403');
-      if (!r.ok) { var bad = fail('http', 'HTTP ' + r.status); bad.status = r.status; throw bad; }
+      if (!r.ok) {            /* keep what the flow said (its error text, any counts): a 400 can mean a flow older than this page or an input the flow refused, a 503 the audit log or a gateway */
+        return r.text().then(function (t) { return t; }, function () { return ''; }).then(function (t) {
+          var bad = fail('http', 'HTTP ' + r.status), j = null; bad.status = r.status;
+          try { j = JSON.parse(t); } catch (x) {}
+          bad.body = j && typeof j === 'object' ? j : null; bad.error = bad.body && typeof bad.body.error === 'string' ? bad.body.error : '';
+          throw bad;
+        });
+      }
       return r.json();
     });
   }
+  /* the flow's own words, exactly: a gateway's 503 (a web page, or nothing) or a 400 about something else must never be taken for them */
+  function isOldFlow(e) { return !!e && e.code === 'http' && e.status === 400 && e.error === 'unknown action'; }                       // flows older than the page answer 400 'unknown action'
+  function isLogDown(e) { return !!e && e.code === 'http' && e.status === 503 && e.error === 'audit log unavailable'; }
+  function isChanged(e) { return !!e && e.code === 'http' && e.status === 409 && e.error === 'the rows changed since the preview'; }
 
   /* ---------- screens ---------- */
   var SCREENS = ['sLoading', 'sSignin', 'sNotAdmin', 'sProblem', 'console'];
   function showScreen(id) {
     SCREENS.forEach(function (s) { $(s).hidden = s !== id; }); $('signOut').hidden = id === 'sLoading' || id === 'sProblem' || !account;
-    if (id === 'sSignin' || id === 'sNotAdmin') { state.list = null; state.pending = null; state.gen++; anReset(); $('view').innerHTML = ''; }      // leaving the console: what was on screen goes with it
+    if (id === 'sSignin' || id === 'sNotAdmin') { state.list = null; state.pending = null; state.gen++; anReset(); auReset(); $('view').innerHTML = ''; }      // leaving the console: what was on screen goes with it
   }
   function problem(msg) { $('problemMsg').textContent = msg; showScreen('sProblem'); }
 
   /* ---------- data shared by the sections: one list call, kept until Refresh ---------- */
-  var state = { list: null, loadedAt: 0, pending: null, gen: 0, gone: { cards: {}, leads: {} } };
+  var state = { list: null, loadedAt: 0, pending: null, gen: 0, gone: { cards: {}, leads: {}, contacts: {} } };
   var an = { data: null, pending: null, gen: 0 };       // the analytics answer (loadAnalytics); gen moves on whenever an answer asked for earlier may be out of date
   function anReset() { an.data = null; an.pending = null; an.gen++; }
+  var au = { pending: null };       // the audit log is read fresh every time and no copy is kept: only the request on its way is shared (loadAudit)
+  function auReset() { au.pending = null; }
   var redraw = null;      // the draw function of the section on screen, so a finished delete updates what the person sees
-  function invalidate() { state.list = null; state.pending = null; state.gen++; anReset(); }
+  function invalidate() { state.list = null; state.pending = null; state.gen++; anReset(); auReset(); }
   function dropGone(l) {   // rows deleted during this visit never come back from an older answer
     l.cards = l.cards.filter(function (c) { return !state.gone.cards[c.cr18b_staffcardid]; });
     l.leads = l.leads.filter(function (x) { return !state.gone.leads[x.cr18b_cardleadid]; });
+    l.contacts = l.contacts.filter(function (x) { return !state.gone.contacts[x.cr18b_table1id]; });
     return l;
   }
   function loadList() {
@@ -371,15 +393,26 @@ var CONFIG = {
       if (!j || !j.ok) throw fail('http', 'bad answer');
       if (gen !== state.gen) return loadList();                    // a Refresh started meanwhile: its answer wins, this one may be older
       state.list = dropGone({ cards: j.cards || [], leads: j.leads || [], contacts: j.contacts || [] });
-      state.loadedAt = Date.now(); $('updated').textContent = 'Loaded ' + fmt(state.loadedAt);
+      state.loadedAt = Date.now();
       return state.list;
     }).then(function (l) { if (state.pending === p) state.pending = null; return l; }, function (e) { if (state.pending === p) state.pending = null; throw e; });
     state.pending = p; return p;
   }
   function forget(kind, id) {   // a delete the server confirmed: forget the row everywhere, now
-    state.gone[kind][id] = true; anReset();
-    if (state.list) removeFrom(state.list[kind], kind === 'cards' ? 'cr18b_staffcardid' : 'cr18b_cardleadid', id);
+    state.gone[kind][id] = true; anReset(); auReset();
+    if (state.list) removeFrom(state.list[kind], { cards: 'cr18b_staffcardid', leads: 'cr18b_cardleadid', contacts: 'cr18b_table1id' }[kind], id);
     refreshNav(); if (redraw) redraw();
+  }
+  var inflight = {};      // the ids of the rows whose delete is on its way to the flow
+  function tracked(id, p) {      // marks a row as 'Deleting…' until the flow has answered (a list drawn meanwhile shows it disabled)
+    inflight[id] = true;
+    var done = function () { delete inflight[id]; };
+    p.then(done, function () { done(); if (redraw) redraw(); });       // a delete that failed: draw the list again so the row's button is usable again
+    return p;
+  }
+  function waitGuard() {         // no second Delete is armed while one is running: the person sees one result at a time and the lists stay simple
+    if (Object.keys(inflight).length) { toast('A delete is still running. Wait for it to finish.'); return false; }
+    return true;
   }
 
   /* ---------- building blocks ---------- */
@@ -393,22 +426,31 @@ var CONFIG = {
   function actionFailed(e, fallback) {
     if (e && e.code === 'signin') { toast('Your sign-in ended. Sign in again.'); showScreen('sSignin'); }
     else if (e && e.code === 'notadmin') { $('naWho').textContent = account ? account.username || '' : ''; showScreen('sNotAdmin'); }
+    else if (isLogDown(e)) toast('The audit log could not be written, so nothing was done. See Audit.');
+    else if (isOldFlow(e)) toast('The admin flow is older than this page. Import flows 1.3.0.0.');
     else toast(fallback);
   }
   /* a row with an optional button that needs a second, deliberate tap: the first tap arms it for 4 seconds (it turns red), a second tap within half a second
      is ignored (a double tap is not a confirmation), and it disarms by itself or when it loses focus. `badge` is a small label next to the name. */
   function row(title, sub, action, badge) {
     var li = el('li'), main = el('div', 'main'), nm = el('div', 'cname', title);
-    if (badge) nm.appendChild(el('span', 'pill' + (badge.ok ? ' ok' : ''), badge.text));
+    if (badge) nm.appendChild(el('span', 'pill' + (badge.ok ? ' ok' : '') + (badge.cls ? ' ' + badge.cls : ''), badge.text));
     main.appendChild(nm); if (sub) main.appendChild(el('div', 'csub', sub)); li.appendChild(main);
     if (action) {
-      var b = el('button', 'btn btn-secondary danger', action.label), armed = false, armedAt = 0, timer = null; b.type = 'button';
-      var disarm = function () { armed = false; clearTimeout(timer); b.textContent = action.label; b.classList.remove('armed'); };
+      var b = el('button', 'btn btn-secondary danger', action.label), armed = false, armedAt = 0, timer = null, running = false, who = action.label + (title ? ': ' + title : ''); b.type = 'button';
+      b.setAttribute('aria-label', who);                                  // every button of a list has the same words: the name of the row tells a screen reader which one it is
+      var disarm = function () { if (running) return; armed = false; clearTimeout(timer); b.textContent = action.label; b.setAttribute('aria-label', who); b.classList.remove('armed'); };
+      var working = function () { running = true; clearTimeout(timer); b.disabled = true; b.classList.remove('armed'); b.textContent = 'Deleting\u2026'; b.setAttribute('aria-label', 'Deleting: ' + (title || action.label)); };
+      if (action.busy && action.busy()) working();                        // a row drawn again while its own delete is on its way
       b.addEventListener('click', function () {
-        if (!armed) { armed = true; armedAt = Date.now(); b.textContent = 'Tap again to confirm'; b.classList.add('armed'); timer = setTimeout(disarm, 4000); return; }
+        if (!armed) {
+          if (action.guard && !action.guard()) return;                    // e.g. the request reference is still missing, or another delete is running: say so before arming
+          armed = true; armedAt = Date.now(); b.textContent = 'Tap again to confirm'; b.setAttribute('aria-label', 'Tap again to confirm: ' + who); b.classList.add('armed'); timer = setTimeout(disarm, 4000); return;
+        }
         if (Date.now() - armedAt < 500) return;
-        clearTimeout(timer); b.disabled = true;
-        action.run().then(function () { toast(action.done || 'Done'); }, function (e) { b.disabled = false; disarm(); actionFailed(e, 'Could not do that. Try again.'); });
+        if (action.guard && !action.guard()) { disarm(); return; }        // asked again: something may have changed since the first tap
+        working();
+        action.run().then(function () { toast(action.done || 'Done'); }, function (e) { running = false; b.disabled = false; disarm(); actionFailed(e, 'Could not do that. Try again.'); });
       });
       b.addEventListener('blur', disarm);
       li.appendChild(b);
@@ -428,12 +470,11 @@ var CONFIG = {
     var p = adminApi('analytics', { days: ANALYTICS_DAYS }).then(function (j) {
       if (!j || !j.ok) throw fail('http', 'bad answer');
       if (mine !== an.gen) return loadAnalytics();                  // a Refresh or a delete happened meanwhile: this answer may be older than what the person has just done
-      an.data = { leads: j.leads || [], captures: j.captures || [], events: j.events || [], tracking: j.tracking !== false, cap: j.cap || 5000 };
-      $('updated').textContent = 'Loaded ' + fmt(Date.now());
+      an.data = { leads: j.leads || [], captures: j.captures || [], events: j.events || [], tracking: j.tracking !== false, cap: j.cap || 5000, loadedAt: Date.now() };
       return an.data;
     }).then(function (d) { if (an.pending === p) an.pending = null; return d; }, function (e) {
       if (an.pending === p) an.pending = null;
-      if (e && e.code === 'http' && e.status === 400) e = fail('oldflow', 'the admin flow does not know the analytics request');   // flows older than 1.2.0.0 answer 400 'unknown action'
+      if (isOldFlow(e)) e = fail('oldflow', 'the admin flow does not know the analytics request');   // flows older than 1.2.0.0 answer 400 'unknown action'
       throw e;
     });
     an.pending = p; return p;
@@ -441,6 +482,21 @@ var CONFIG = {
   function loadAnalyticsBundle() {
     var listP = loadList().catch(function (e) { if (e && (e.code === 'signin' || e.code === 'notadmin')) throw e; return null; });     // the card names are a nicety: the page works without them
     return Promise.all([listP, loadAnalytics()]).then(function (r) { return { list: r[0] || { cards: [], leads: [], contacts: [] }, listFailed: !r[0], an: r[1] }; });
+  }
+
+  /* ---------- audit data: the Admin Log of the last 90 days and the last run of each scheduled job, read fresh every time (reading the log is not logged, and every other action adds an entry) ---------- */
+  var AUDIT_DAYS = 90;
+  function loadAudit() {
+    if (au.pending) return au.pending;                              // one request at a time, shared by whoever asks
+    var p = adminApi('audit', { days: AUDIT_DAYS }).then(function (j) {         // an answer that arrives after an action or a Refresh is dropped by showSection (it draws only the section on screen): nothing is kept here
+      if (!j || !j.ok) throw fail('http', 'bad answer');
+      return { rows: j.rows || [], jobs: j.jobs && typeof j.jobs === 'object' ? j.jobs : null, logging: j.logging !== false, cap: j.cap || 2000, loadedAt: Date.now() };
+    }).then(function (d) { if (au.pending === p) au.pending = null; return d; }, function (e) {
+      if (au.pending === p) au.pending = null;
+      if (isOldFlow(e)) e = fail('oldflow', 'the admin flow does not know the audit request');   // flows older than 1.3.0.0 answer 400 'unknown action'
+      throw e;
+    });
+    au.pending = p; return p;
   }
 
   /* ---------- analytics maths: local calendar days, the chosen range and the same-length period before it ---------- */
@@ -538,9 +594,14 @@ var CONFIG = {
     a.href = url; a.download = name; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 3000);
   }
   function csvName(slug) { return 'gcs-' + slug + '-' + dayKey(Date.now()) + '.csv'; }
-  function exportButton(slug, rowsOf, label) {
+  function noteExport(slug, rows, ref) {      // tell the audit log that a list was downloaded; the browser makes the file, so this is reported by the page and best effort
+    var what = /^(card-performance|daily-totals)/.test(slug) ? 'export-analytics' : 'export-' + slug, body = { what: what, count: Math.max(0, rows - 1) };
+    if (ref && refAllowed(ref)) body.ref = ref;                      // the request reference, when the export belongs to a privacy request and the flow would accept it (else the export is still logged, without it)
+    adminApi('note', body).then(auReset, function () {});
+  }
+  function exportButton(slug, rowsOf, label, refOf) {
     var b = el('button', 'btn btn-secondary btn-sm', label || 'Export CSV'); b.type = 'button'; if (!label) b.title = 'Exports the rows shown now, after the filter';
-    b.addEventListener('click', function () { downloadCsv(csvName(slug), rowsOf()); }); return b;
+    b.addEventListener('click', function () { var rows = rowsOf(); downloadCsv(csvName(slug), rows); noteExport(slug, rows.length, refOf ? refOf() : ''); }); return b;
   }
 
   /* ---------- section: Analytics ---------- */
@@ -707,8 +768,8 @@ var CONFIG = {
       shown.forEach(function (c) {
         ul.appendChild(row(c.cr18b_name || '(no name)',
           dot([c.cr18b_title, c.cr18b_company, c.cr18b_owneremail, c.cr18b_publicid ? 'id ' + c.cr18b_publicid : 'no id', c.cr18b_publishedat ? fmt(c.cr18b_publishedat) : '']),
-          { label: 'Delete card', done: 'Card deleted', run: function () {
-            return adminApi('deletecard', { id: c.cr18b_staffcardid }).then(function (j) { if (!j || !j.ok) throw fail('http'); forget('cards', c.cr18b_staffcardid); });
+          { label: 'Delete card', done: 'Card deleted', guard: waitGuard, busy: function () { return !!inflight[c.cr18b_staffcardid]; }, run: function () {
+            return tracked(c.cr18b_staffcardid, adminApi('deletecard', { id: c.cr18b_staffcardid }).then(function (j) { if (!j || !j.ok) throw fail('http'); forget('cards', c.cr18b_staffcardid); }));
           } }, c.statecode === 1 ? { text: 'inactive' } : null));
       });
       if (!shown.length) ul.appendChild(el('li', 'empty', d.cards.length ? 'No cards match.' : 'No published cards.'));
@@ -732,8 +793,8 @@ var CONFIG = {
       shown.forEach(function (l) {
         ul.appendChild(row(l.cr18b_name || '(no name)',
           dot([l.cr18b_company, l.cr18b_email, 'for ' + (l.cr18b_owneremail || '?'), l.createdon ? fmt(l.createdon) : '']),
-          { label: 'Delete', done: 'Lead deleted', run: function () {
-            return adminApi('deletelead', { id: l.cr18b_cardleadid }).then(function (j) { if (!j || !j.ok) throw fail('http'); forget('leads', l.cr18b_cardleadid); });
+          { label: 'Delete', done: 'Lead deleted', guard: waitGuard, busy: function () { return !!inflight[l.cr18b_cardleadid]; }, run: function () {
+            return tracked(l.cr18b_cardleadid, adminApi('deletelead', { id: l.cr18b_cardleadid }).then(function (j) { if (!j || !j.ok) throw fail('http'); forget('leads', l.cr18b_cardleadid); }));
           } }, /^verified/i.test(l.cr18b_cardverification || '') ? { text: 'verified', ok: true } : { text: 'not verified' }));
       });
       if (!shown.length) ul.appendChild(el('li', 'empty', d.leads.length ? 'No leads match.' : 'No leads waiting.'));
@@ -759,7 +820,206 @@ var CONFIG = {
     redraw = draw; draw();
   }
 
+  /* ---------- section: Audit (who did what, and whether the nightly jobs ran) ---------- */
+  var ACTION_LABEL = { view: 'Opened the lists', search: 'Searched for a person', deletecard: 'Deleted a card', deletelead: 'Deleted a lead', deletecontact: 'Deleted a captured contact',
+                       cleanup: 'Deleted sample and test rows', 'cleanup-preview': 'Previewed the clean-up', 'export': 'Exported a list', retention: 'Nightly clean-up ran',
+                       'retention-failed': 'Nightly clean-up failed', digest: 'Weekly digest sent' };
+  var ACTION_GROUP = { deletecard: 'delete', deletelead: 'delete', deletecontact: 'delete', cleanup: 'delete', view: 'view', search: 'view', 'cleanup-preview': 'view', 'export': 'export',
+                       retention: 'job', 'retention-failed': 'job', digest: 'job' };
+  var JOBS = [
+    { name: 'retention', label: 'Nightly clean-up', when: 'every night at 03:00 (Gulf time)', limit: 30 * 3600e3, failName: 'retention-failed', where: 'GCS Retention' },
+    { name: 'digest', label: 'Weekly digest e-mail', when: 'every Monday at 08:00 (Gulf time)', limit: 8 * DAY_MS, where: 'GCS Weekly digest' }
+  ];
+  function newest(list) {
+    var best = null;
+    (list || []).forEach(function (r) { var t = ts(r && r.createdon); if (t !== null && (best === null || t > best.t)) best = { t: t, row: r }; });
+    return best;
+  }
+  function jobRow(d, name) {         // the last row of a job: the flow reads it on its own (so it can be older than the list below), else the newest one in the list
+    return d.jobs && Array.isArray(d.jobs[name]) ? newest(d.jobs[name]) : newest(d.rows.filter(function (r) { return r.cr18b_name === name; }));
+  }
+  function jobState(d, job) {        // { text, cls, sub } for one scheduled job, from the log alone
+    var good = jobRow(d, job.name), bad = job.failName ? jobRow(d, job.failName) : null;
+    if (bad && (!good || bad.t > good.t)) return { text: 'Failed', cls: 'bad', sub: 'Failed ' + fmt(bad.t) + '. Open Power Automate > ' + job.where + ' > run history.' };
+    if (!good) return { text: 'Not seen yet', cls: 'none', sub: 'Never recorded. It runs ' + job.when + ' and leaves a row each time.' };
+    var late = Date.now() - good.t > job.limit, detail = good.row.cr18b_detail;
+    return { text: late ? 'Overdue' : 'OK', cls: late ? 'late' : 'ok', sub: (late ? 'Last ran ' : 'Ran ') + fmt(good.t) + (detail ? ' · ' + detail : '') + (late ? '. It should run ' + job.when + ': check that the flow is switched on.' : '') };
+  }
+  function renderAudit(host, d) {
+    host.appendChild(head('Audit log', d.logging ? d.rows.length : null));
+    if (!d.logging) {
+      host.appendChild(notice('The audit log cannot be read.', 'The Admin Log table is probably missing. Create it with python3 tools/create_admin_log_table.py --apply, then import flows 1.3.0.0 (docs/AUDIT-AND-PRIVACY.md). Until it exists the console shows no lists and deletes nothing.', 'warn'));
+      return;
+    }
+    var jobs = panel('Scheduled jobs', 'Read from the log: a job that has stopped running shows here as Overdue. The nightly clean-up also e-mails the admins by itself when it fails.'), jl = el('ul', 'rows wrap'); jl.id = 'jobRows';
+    JOBS.forEach(function (j) { var st = jobState(d, j); jl.appendChild(row(j.label, st.sub, null, { text: st.text, ok: st.cls === 'ok', cls: st.cls === 'ok' ? '' : st.cls })); });
+    jobs.appendChild(jl); host.appendChild(jobs);
+    if (d.rows.length >= d.cap) host.appendChild(notice('Showing the newest ' + d.cap + ' entries.', 'Older entries are stored but not listed here.', 'warn'));
+    var ul = el('ul', 'rows wrap'), more = el('button', 'btn btn-secondary btn-sm', ''), kind = el('select', 'search sel'), shownNow = [], limit = 100, extra = el('div', 'ctl');
+    ul.id = 'auditRows'; kind.id = 'auditKind'; kind.setAttribute('aria-label', 'Kind of entry');
+    [['all', 'Everything'], ['delete', 'Deletes'], ['view', 'Looking at personal data'], ['export', 'Exports'], ['job', 'Scheduled jobs']].forEach(function (o) { var op = el('option', null, o[1]); op.value = o[0]; kind.appendChild(op); });
+    extra.appendChild(kind);
+    extra.appendChild(exportButton('audit', function () {
+      return [['When (UTC)', 'Who', 'What', 'Target', 'Detail']].concat(shownNow.map(function (r) { return [r.createdon, r.cr18b_actor, r.cr18b_name, r.cr18b_target, r.cr18b_detail]; }));
+    }));
+    var q = filterBox(host, function () { limit = 100; draw(); }, extra); kind.addEventListener('change', function () { limit = 100; draw(); });
+    host.appendChild(ul); more.type = 'button'; more.addEventListener('click', function () { limit += 100; draw(); }); host.appendChild(more);
+    function draw() {
+      ul.innerHTML = '';
+      var rows = d.rows.filter(function (r) {
+        var g = ACTION_GROUP[r.cr18b_name] || 'other';
+        return (kind.value === 'all' || g === kind.value) && matches(q.value, [r.cr18b_name, ACTION_LABEL[r.cr18b_name], r.cr18b_actor, r.cr18b_target, r.cr18b_detail]);
+      });
+      shownNow = rows;
+      rows.slice(0, limit).forEach(function (r) { ul.appendChild(row(ACTION_LABEL[r.cr18b_name] || r.cr18b_name || '(unnamed)', dot([fmt(r.createdon), r.cr18b_actor, r.cr18b_target, r.cr18b_detail]))); });
+      if (!rows.length) ul.appendChild(el('li', 'empty', d.rows.length ? 'No entries match.' : 'Nothing is recorded yet.'));
+      more.hidden = rows.length <= limit; more.textContent = 'Show more (' + (rows.length - limit) + ' left)';
+    }
+    draw();
+    host.appendChild(el('p', 'csub', 'An entry is written before the action happens, so a delete that then failed still leaves its entry. Entries hold the admin’s address, a row id or counts and the request reference typed in the console (letters, digits and dashes only), never a name, an address or what a visitor wrote. Opening the console loads the lists, which is logged as “Opened the lists”; the Analytics numbers themselves are not logged. Exports are noted when this page reports them. Entries are kept for two years; this page cannot change or delete them.'));
+  }
+
+  /* ---------- section: Privacy (find what is held about a person, copy it, erase it on request) ---------- */
+  /* the request reference is a ticket number such as PRIV-2026-014: letters, digits and dashes, at most 40 characters, with 1 to 8 digits in it (so a name, an e-mail address or a phone number cannot be typed in).
+     The flow checks the same, on its own, before anything happens. */
+  var REF_RE = /^[A-Za-z0-9-]{0,40}$/;
+  var REF_HELP = 'letters, digits and dashes, 1 to 8 digits, up to 40 characters';
+  function refAllowed(s) { if (!REF_RE.test(s)) return false; var digits = s.replace(/[^0-9]/g, '').length; return !s || (digits >= 1 && digits <= 8); }
+  function renderPrivacy(host) {
+    host.appendChild(head('Privacy requests'));
+    var box = el('section', 'box');
+    box.appendChild(el('h3', 'h3', 'Find what is held about a person'));
+    box.appendChild(el('p', 'sub', 'Searches leads, captured contacts and staff cards for a name, e-mail address, phone number or company (staff cards: name, owner address and link; at least 3 characters; an e-mail address finds the most). The search and every delete go in the audit log with the number of results and the request reference, never the words you typed.'));
+    var form = el('div', 'tools'), q = el('input', 'search'), go = el('button', 'btn btn-primary', 'Search'), form2 = el('div', 'tools'), ref = el('input', 'search'), out = el('div'), res = null, run = 0, pendingKey = '';
+    var refLabel = el('label', 'csub', 'Request reference, needed to erase (a ticket number such as PRIV-2026-014: ' + REF_HELP + '; no names, addresses or spaces)'), refNote = el('p', 'csub'); refNote.id = 'refNote';
+    q.type = 'search'; q.placeholder = 'E-mail, name or phone'; q.maxLength = 254; q.setAttribute('aria-label', 'Who to look for');          // 254 is the longest e-mail address there is: a pasted one is never cut
+    ref.type = 'text'; ref.placeholder = 'e.g. PRIV-2026-014'; ref.id = 'privacyRef'; refLabel.htmlFor = 'privacyRef';                      // no maxLength: a pasted reference that is too long is refused, not cut to something else
+    [q, ref].forEach(function (i) { i.setAttribute('autocomplete', 'off'); i.setAttribute('spellcheck', 'false'); i.setAttribute('autocapitalize', 'off'); });
+    go.type = 'button'; form.appendChild(q); form.appendChild(go); form2.appendChild(ref); box.appendChild(form); box.appendChild(refLabel); box.appendChild(form2); box.appendChild(refNote);
+    out.setAttribute('aria-live', 'polite'); out.id = 'privacyOut'; q.id = 'privacyQ'; go.id = 'privacyGo'; host.appendChild(box); host.appendChild(out);
+    function refNow() { return ref.value.trim(); }
+    function refGood() { return refAllowed(refNow()); }
+    function refText() { return !refNow() ? 'Type the request reference above to enable Delete.' : refGood() ? 'Deletes are recorded with the reference ' + refNow() + '.' : 'That reference is not allowed: ' + REF_HELP + '.'; }
+    refNote.textContent = refText(); ref.addEventListener('input', function () { refNote.textContent = refText(); });                 // outside the live region: a screen reader does not read it out on every keystroke
+    function searchFailed(e) {
+      if (e && e.code === 'http' && e.status === 400 && e.error === 'bad search text or reference') toast('Check the search text (at least 3 characters) and the reference (' + REF_HELP + ').');
+      else actionFailed(e, 'The search did not finish. Try again.');
+    }
+    function search() {
+      var text = q.value.trim(), key = text + '\n' + refNow();
+      if (text.length < 3) { toast('Type at least 3 characters.'); return; }
+      if (!refGood()) { toast('The reference is not allowed: ' + REF_HELP + '.'); return; }
+      if (key === pendingKey) return;                                  // the same search is already on its way: a held Enter key or a double tap is one search, one audit entry
+      var mine = ++run; pendingKey = key; res = null; out.innerHTML = ''; out.appendChild(el('p', 'csub', 'Searching…'));
+      adminApi('findperson', { q: text, ref: refNow() }).then(function (j) {
+        if (mine !== run) return;                                    // a newer search, or the text was edited: this answer is not about what is in the box any more
+        pendingKey = '';
+        if (!j || !j.ok) throw fail('http', 'bad answer');
+        var cap = j.cap || 100, L = j.leads || [], C = j.contacts || [], K = j.cards || [], capped = L.length >= cap || C.length >= cap || K.length >= cap;
+        L = L.filter(function (x) { return !state.gone.leads[x.cr18b_cardleadid]; });             // a row erased while this search was running is not listed again
+        C = C.filter(function (x) { return !state.gone.contacts[x.cr18b_table1id]; }); K = K.filter(function (x) { return !state.gone.cards[x.cr18b_staffcardid]; });
+        res = { text: text, leads: L, contacts: C, cards: K, cap: cap, capped: capped }; draw();
+      }).catch(function (e) { if (mine !== run) return; pendingKey = ''; out.innerHTML = ''; res = null; searchFailed(e); });
+    }
+    go.addEventListener('click', search); q.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing && !e.repeat) search(); });
+    q.addEventListener('input', function () { run++; pendingKey = ''; res = null; out.innerHTML = ''; });          // results belong to the text they were found for: edit it and they go
+    function copyRows() {
+      var h = [['Type', 'Name', 'E-mail', 'Phone', 'Office phone', 'Company', 'Job title', 'Website', 'Address', 'Note', 'Card', 'Owner', 'Received or captured (UTC)', 'Captured by', 'Source', 'Met at', 'Consent given', 'Consent wording', 'Language', 'Verification', 'Status']];
+      var yes = function (v) { return v === true ? 'Yes' : v === false ? 'No' : ''; };
+      res.leads.forEach(function (x) { h.push(['Lead', x.cr18b_name, x.cr18b_email, x.cr18b_phone, '', x.cr18b_company, '', '', '', x.cr18b_note, x.cr18b_cardid, x.cr18b_owneremail, x.cr18b_submittedat || x.createdon, '', '', '', '', x.cr18b_consentwording, x.cr18b_language, x.cr18b_cardverification, x.statecode === 1 ? 'Closed' : 'Open']); });
+      res.contacts.forEach(function (x) { h.push(['Captured contact', x.cr18b_name, x.cr18b_email, x.cr18b_phone, x.cr18b_officephone, x.cr18b_company, x.cr18b_jobtitle, x.cr18b_website, x.cr18b_address, x.cr18b_note, '', '', x.cr18b_capturedat || x.createdon, x.cr18b_capturedby, x.cr18b_source, x.cr18b_metat, yes(x.cr18b_consent), '', '', '', '']); });
+      res.cards.forEach(function (x) { h.push(['Staff card', x.cr18b_name, x.cr18b_owneremail, '', '', x.cr18b_company, x.cr18b_title, '', '', '', x.cr18b_publicid, x.cr18b_owneremail, x.cr18b_publishedat, '', '', '', '', '', '', '', x.statecode === 1 ? 'Inactive' : 'Active']); });
+      return h;
+    }
+    var KEYS = { leads: 'cr18b_cardleadid', contacts: 'cr18b_table1id', cards: 'cr18b_staffcardid' };
+    function erase(action, kind, id) {
+      var shown = res;                                                             // the results the row was drawn from (a newer search may have replaced them while the delete runs)
+      return tracked(id, adminApi(action, { id: id, ref: refNow() }).then(function (j) {
+        if (!j || !j.ok) throw fail('http', 'bad answer');
+        forget(kind, id);                                                          // the flow confirmed it: forget the row everywhere first...
+        if (shown) removeFrom(shown[kind], KEYS[kind], id);
+        if (res && res !== shown) removeFrom(res[kind], KEYS[kind], id);          // ...also from a newer search that was read before the delete went through
+      })).then(function () {
+        if (!res) return;
+        var typing = document.activeElement && document.activeElement !== document.body && !out.contains(document.activeElement);      // a person typing in the reference box keeps the focus there
+        draw(); if (!typing) { var nb = out.querySelector('button.danger:not(:disabled)'); (nb || q).focus(); }
+      }, function (e) { if (res) draw(); throw e; });
+    }
+    function group(title, list, note, build) {
+      if (!list.length) return;
+      out.appendChild(el('h3', 'h3', title + ' (' + list.length + ')'));
+      if (note) out.appendChild(el('p', 'csub', note));
+      var ul = el('ul', 'rows'); list.forEach(function (x) { ul.appendChild(build(x)); }); out.appendChild(ul);
+    }
+    function guard() {
+      if (!waitGuard()) return false;
+      if (!refNow()) { toast('Type the request reference first: every erase is recorded against it.'); ref.focus(); return false; }
+      if (!refGood()) { toast('The reference is not allowed: ' + REF_HELP + '.'); ref.focus(); return false; }
+      return true;
+    }
+    function draw() {
+      out.innerHTML = '';
+      var n = res.leads.length + res.contacts.length + res.cards.length;
+      if (!n) { out.appendChild(el('p', 'sub', res.capped ? 'None of the rows that were shown is left. The search stopped at ' + res.cap + ' rows, so more may be held: search again.' : 'Nothing found. Try the e-mail address, or part of the phone number.')); return; }
+      var bar = el('div', 'tools'); bar.appendChild(el('span', 'csub', n + (n === 1 ? ' row' : ' rows') + ' found for “' + res.text + '”')); bar.appendChild(exportButton('person', copyRows, 'Download a copy (CSV)', refNow)); out.appendChild(bar);
+      out.appendChild(el('p', 'csub', 'The copy holds every row listed here, including other people whose details look similar: check the rows first. Search for the e-mail address to narrow it down. A staff card’s own content (its phone, e-mail, website and photo) is not in the copy: it is what the card page shows at its link.'));
+      if (res.capped) out.appendChild(notice('There may be more.', 'A list stopped at ' + res.cap + ' rows. Search for something more specific, and search again after erasing.', 'warn'));
+      group('Leads from card pages', res.leads, '', function (x) {
+        return row(x.cr18b_name || '(no name)', dot([x.cr18b_email, x.cr18b_phone, x.cr18b_company, x.cr18b_cardid ? 'card ' + x.cr18b_cardid : '', x.createdon ? 'received ' + fmt(x.createdon) : '', x.statecode === 1 ? 'closed' : '']),
+                   { label: 'Delete lead', done: 'Lead deleted', guard: guard, busy: function () { return !!inflight[x.cr18b_cardleadid]; }, run: function () { return erase('deletelead', 'leads', x.cr18b_cardleadid); } });
+      });
+      group('Captured contacts', res.contacts, '', function (x) {
+        return row(x.cr18b_name || '(no name)', dot([x.cr18b_email, x.cr18b_phone || x.cr18b_officephone, x.cr18b_company, x.cr18b_jobtitle, x.cr18b_capturedby ? 'captured by ' + personName(x.cr18b_capturedby) : '', x.cr18b_capturedat ? fmt(x.cr18b_capturedat) : '']),
+                   { label: 'Delete contact', done: 'Contact deleted', guard: guard, busy: function () { return !!inflight[x.cr18b_table1id]; }, run: function () { return erase('deletecontact', 'contacts', x.cr18b_table1id); } });
+      });
+      group('Staff cards', res.cards, 'Deleting a card unpublishes it for good: its link and QR code stop working.', function (x) {
+        return row(x.cr18b_name || '(no name)', dot([x.cr18b_owneremail, x.cr18b_title, x.cr18b_company, x.cr18b_publicid ? 'link ' + x.cr18b_publicid : 'not published', x.statecode === 1 ? 'inactive' : '']),
+                   { label: 'Delete card', done: 'Card deleted', guard: guard, busy: function () { return !!inflight[x.cr18b_staffcardid]; }, run: function () { return erase('deletecard', 'cards', x.cr18b_staffcardid); } });
+      });
+    }
+  }
+
   /* ---------- section: Maintenance ---------- */
+  function fingerprint(p) {      // the ids of the rows that were shown, in the order the flow listed them: the flow deletes only when it reads exactly these (its own text of the same shape)
+    function ids(list, key) { return list.map(function (x) { return x && x[key] != null ? String(x[key]) : ''; }).join(','); }
+    return 'cards:' + ids(p.cards, 'cr18b_staffcardid') + ';leads:' + ids(p.leads, 'cr18b_cardleadid') + ';contacts:' + ids(p.contacts, 'cr18b_table1id');
+  }
+  function previewDraw(area, p, cap) {
+    area.innerHTML = '';
+    var n = p.cards.length + p.leads.length + p.contacts.length;
+    if (!n) { area.appendChild(el('p', 'sub', 'Nothing matches: there is nothing to clean up.')); return; }
+    [['Sample staff cards', p.cards, function (x) { return dot([x.cr18b_owneremail]); }],
+     ['Test leads', p.leads, function (x) { return dot([x.cr18b_cardid ? 'card ' + x.cr18b_cardid : '', x.createdon ? fmt(x.createdon) : 'no date']); }],
+     ['Test captures', p.contacts, function (x) { return dot([x.cr18b_company, x.cr18b_capturedby, x.cr18b_source]); }]].forEach(function (g) {
+      if (!g[1].length) return;
+      area.appendChild(el('h3', 'h3', g[0] + ' (' + g[1].length + (g[1].length >= cap ? ' or more' : '') + ')'));
+      var ul = el('ul', 'rows'); g[1].forEach(function (x) { ul.appendChild(row(x.cr18b_name || '(no name)', g[2](x))); }); area.appendChild(ul);
+    });
+    if (Math.max(p.cards.length, p.leads.length, p.contacts.length) >= cap) area.appendChild(notice('A list stopped at ' + cap + ' rows.', 'Delete these first, then show the list again for the rest.', 'warn'));
+    var del = el('button', 'btn btn-secondary danger', 'Delete these ' + n + ' rows'); del.type = 'button';
+    del.addEventListener('click', function () {
+      if (!confirm('Delete the ' + n + ' rows listed above? Real cards and leads are kept. This cannot be undone.')) return;
+      del.disabled = true; del.textContent = 'Cleaning up…';
+      adminApi('cleanup', { expect: fingerprint(p) }).then(function (j) {
+        if (!j || !j.ok) throw fail('http', 'bad answer');
+        invalidate(); area.innerHTML = '';
+        var c = [j.cards || 0, j.leads || 0, j.contacts || 0];
+        area.appendChild(notice('Done.', 'Removed ' + c[0] + ' sample cards, ' + c[1] + ' test leads and ' + c[2] + ' test captures.' + (Math.max(c[0], c[1], c[2]) >= cap ? ' ' + cap + ' is the limit per run: show the list again and run it again.' : '')));
+        toast('Clean-up done');
+      }).catch(function (e) {
+        invalidate();
+        if (isChanged(e)) {                                                                       // the flow read other rows than the ones that were shown: it deleted nothing
+          var b = e.body || {}; area.innerHTML = '';
+          area.appendChild(notice('The rows changed, so nothing was deleted.', 'There are now ' + (b.cards || 0) + ' sample cards, ' + (b.leads || 0) + ' test leads and ' + (b.contacts || 0) + ' test captures matching. Show the list again, check it, then delete.', 'warn'));
+          toast('Nothing deleted: the rows changed since the list was shown.'); return;
+        }
+        area.innerHTML = '';                                                                     // the list on screen may not be true any more (some rows may be gone): do not leave a Delete button under it
+        area.appendChild(notice(isLogDown(e) ? 'The audit log could not be written, so nothing was deleted.' : 'The clean-up did not finish.', isLogDown(e) ? 'Create the Admin Log table, then show the list again.' : 'Some rows may be gone. Show the list again to see what is left.', 'warn'));
+        actionFailed(e, 'Clean-up did not finish. Some rows may be gone: show the list again.');
+      });
+    });
+    area.appendChild(del);
+  }
   function renderMaintenance(host) {
     host.appendChild(head('Maintenance'));
     var box = el('section', 'box');
@@ -770,27 +1030,27 @@ var CONFIG = {
      'Card Leads with no submitted date, or whose name starts with Test, Curl, Playwright or Version Probe, or whose card id starts with TESTCARD or NOCARD',
      'Captured Cards with no captured date, whose name starts with Test or Dupe Test, or whose source is "test"'].forEach(function (t) { ul.appendChild(el('li', null, t)); });
     box.appendChild(ul);
-    box.appendChild(el('p', 'warn', 'It matches on names, so a real person called Test-something would go too, and it also reaches rows this console does not list (closed leads, older captures): look at Leads and Captures first. Each run deletes at most 200 rows per table; if a number below says 200, run it again.'));
-    var b = el('button', 'btn btn-secondary danger', 'Delete sample and test rows'); b.type = 'button';
-    b.addEventListener('click', function () {
-      if (!confirm('Delete the sample people and test rows from Staff Cards, Card Leads and Captured Cards? Real cards and leads are kept.')) return;
-      b.disabled = true; b.textContent = 'Cleaning up\u2026';
-      adminApi('cleanup').then(function (j) {
-        if (!j || !j.ok) throw fail('http');
-        invalidate(); b.textContent = 'Done';
-        var n = [j.cards || 0, j.leads || 0, j.contacts || 0];
-        toast('Removed ' + n[0] + ' sample cards, ' + n[1] + ' test leads, ' + n[2] + ' test captures' + (Math.max(n[0], n[1], n[2]) >= 200 ? ' (200 is the limit per run: run it again)' : ''));
-      }).catch(function (e) { invalidate(); b.disabled = false; b.textContent = 'Delete sample and test rows'; actionFailed(e, 'Clean-up did not finish. Some rows may be gone: check the lists, then try again.'); });
+    box.appendChild(el('p', 'warn', 'It matches on the start of a name, so a real person called Testa or Tester would match too, and it also reaches rows this console does not list (closed leads, older captures). Look at the list first, then delete: the delete goes ahead only if the flow finds exactly the rows you were shown (it compares their ids), so if a row has come or gone in between (a visitor named Test… arrives), nothing is deleted and you are asked to look again. Each run covers at most 200 rows per table, oldest first; if a number says 200, run it again. Both steps are written to the audit log.'));
+    var show = el('button', 'btn btn-secondary', 'Show what would be deleted'), area = el('div'); show.type = 'button'; area.setAttribute('aria-live', 'polite'); show.id = 'cleanShow'; area.id = 'cleanArea';
+    show.addEventListener('click', function () {
+      if (show.disabled) return;
+      show.disabled = true; show.textContent = 'Looking…'; area.innerHTML = '';
+      adminApi('cleanuppreview').then(function (j) {
+        if (!j || !j.ok) throw fail('http', 'bad answer');
+        previewDraw(area, { cards: j.cards || [], leads: j.leads || [], contacts: j.contacts || [] }, j.cap || 200);
+      }).catch(function (e) { actionFailed(e, 'Could not read the rows. Try again.'); }).then(function () { show.disabled = false; show.textContent = 'Show again'; });
     });
-    box.appendChild(b); host.appendChild(box);
+    box.appendChild(show); box.appendChild(area); host.appendChild(box);
   }
 
   /* ---------- the sections: add an entry here for a new admin feature ---------- */
   var SECTIONS = [
-    { id: 'analytics', title: 'Analytics', load: loadAnalyticsBundle, render: renderAnalytics },
-    { id: 'cards', title: 'Cards', load: loadList, render: renderCards, count: function (d) { return d.cards.length; } },
-    { id: 'leads', title: 'Leads', load: loadList, render: renderLeads, count: function (d) { return d.leads.length; } },
-    { id: 'captures', title: 'Captures', load: loadList, render: renderCaptures, count: function (d) { return d.contacts.length; } },
+    { id: 'analytics', title: 'Analytics', load: loadAnalyticsBundle, render: renderAnalytics, stamp: function (b) { return b.an.loadedAt; } },
+    { id: 'cards', title: 'Cards', load: loadList, render: renderCards, count: function (d) { return d.cards.length; }, stamp: function () { return state.loadedAt; } },
+    { id: 'leads', title: 'Leads', load: loadList, render: renderLeads, count: function (d) { return d.leads.length; }, stamp: function () { return state.loadedAt; } },
+    { id: 'captures', title: 'Captures', load: loadList, render: renderCaptures, count: function (d) { return d.contacts.length; }, stamp: function () { return state.loadedAt; } },
+    { id: 'privacy', title: 'Privacy', render: renderPrivacy },
+    { id: 'audit', title: 'Audit', load: loadAudit, render: renderAudit, stamp: function (d) { return d.loadedAt; } },
     { id: 'maintenance', title: 'Maintenance', render: renderMaintenance }
   ];
   function buildNav() {
@@ -811,8 +1071,12 @@ var CONFIG = {
     if (e && e.code === 'signin') { box.appendChild(el('p', null, 'Your sign-in ended. Sign in again to continue.')); var s = el('button', 'btn btn-primary', 'Sign in'); s.type = 'button'; s.addEventListener('click', function () { start(true); }); box.appendChild(s); return box; }
     if (e && e.code === 'notadmin') { box.appendChild(el('p', null, 'This account is not on the admin list any more.')); return box; }
     if (e && e.code === 'oldflow') {
-      box.appendChild(el('p', null, 'The admin flow is older than this page: it does not know the Analytics request yet. Import flows 1.2.0.0 (docs/ANALYTICS.md). Cards, Leads, Captures and Maintenance work as before.'));
+      box.appendChild(el('p', null, 'The admin flow is older than this page: it does not know this request yet. Import flows 1.3.0.0 (docs/AUDIT-AND-PRIVACY.md). Cards, Leads and Captures work as before.'));
       var o = el('button', 'btn btn-secondary', 'Open Cards'); o.type = 'button'; o.addEventListener('click', function () { location.hash = '#cards'; }); box.appendChild(o); return box;
+    }
+    if (isLogDown(e)) {
+      box.appendChild(el('p', null, 'The audit log is not available, so the console shows no personal data. Every look at the lists and every delete is written to the Admin Log first. Create the Admin Log table (python3 tools/create_admin_log_table.py --apply), then try again (docs/AUDIT-AND-PRIVACY.md).'));
+      var t = el('button', 'btn btn-secondary', 'Try again'); t.type = 'button'; t.addEventListener('click', retry); box.appendChild(t); return box;
     }
     box.appendChild(el('p', null, 'Could not load this. Check the connection and try again.'));
     var r = el('button', 'btn btn-secondary', 'Try again'); r.type = 'button'; r.addEventListener('click', retry); box.appendChild(r); return box;
@@ -823,7 +1087,9 @@ var CONFIG = {
     var view = $('view'); view.innerHTML = ''; view.appendChild(el('p', 'csub', 'Loading…'));
     return Promise.resolve(sec.load ? sec.load() : null).then(function (data) {
       if (mine !== seq) return false;                              // the person moved to another section meanwhile
-      view.innerHTML = ''; sec.render(view, data); refreshNav(); return true;
+      view.innerHTML = ''; sec.render(view, data); refreshNav();
+      var at = sec.stamp ? sec.stamp(data) : 0; if (at) $('updated').textContent = 'Loaded ' + fmt(at);        // the time of THIS section's data, not of whichever request finished last
+      return true;
     }).catch(function (e) {
       if (mine !== seq) return false;
       view.innerHTML = ''; view.appendChild(errorBox(e, function () { showSection(id); })); return false;
@@ -846,6 +1112,8 @@ var CONFIG = {
       else problem('Could not reach the admin service. Check the connection and try again.');
     });
   }
+  window.addEventListener('pagehide', function () { try { $('view').innerHTML = ''; state.list = null; an.data = null; } catch (e) {} });               // leaving the page (Back to the app): nothing about a person stays in the page the browser may keep
+  window.addEventListener('pageshow', function (e) { if (e.persisted) location.reload(); });                       // ...and a page restored from that cache starts again, signed-in check included
   $('signIn').addEventListener('click', function () { $('signInMsg').textContent = 'Opening Microsoft sign-in…'; start(true); });
   $('problemRetry').addEventListener('click', function () { start(false); });
   start(false);
