@@ -322,6 +322,14 @@ input,textarea{background:var(--field-bg);color:var(--ink);border:var(--bw-field
 input::placeholder,textarea::placeholder{color:var(--ink-2);opacity:.8}
 input:focus,textarea:focus{border-color:var(--focus);outline:2px solid var(--focus);outline-offset:0}
 input.guess{border-color:var(--accent);background:var(--guess-bg)}
+/* checkbox: drawn here, not by the browser. A browser's own tick takes its colour from accent-color and some browsers (iPhone Safari) draw it in a fixed colour, which vanished on the white box of the light look. Here the box and the tick use the text colour and the page colour, which always contrast with each other. */
+input[type="checkbox"]{-webkit-appearance:none;appearance:none;display:inline-grid;place-content:center;flex:none;width:24px;height:24px;min-height:0;padding:0;margin:0;border:2px solid var(--ink-2);border-radius:min(var(--radius),6px);background:var(--field-bg);color:var(--bg);cursor:pointer}
+input[type="checkbox"]::after{content:"";display:block;width:12px;height:6px;margin-top:-3px;border-left:3px solid currentColor;border-bottom:3px solid currentColor;transform:rotate(-45deg);opacity:0}
+input[type="checkbox"]:checked{background:var(--ink);border-color:var(--ink)}
+input[type="checkbox"]:checked::after{opacity:1}
+input[type="checkbox"]:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.consent input[type="checkbox"]{margin-top:1px}
+@media (forced-colors:active){input[type="checkbox"]{-webkit-appearance:auto;appearance:auto}}
 label{text-transform:var(--label-case);letter-spacing:var(--label-track)}
 label small{text-transform:none;letter-spacing:0}
 label.consent,.how,.trust{text-transform:none;letter-spacing:normal;font-family:var(--font)}   /* the consent sentence and the privacy text are read, not decoration: never capitals or spaced out */
@@ -544,9 +552,9 @@ function(e){return e.hasOwnProperty("authorization_endpoint")&&e.hasOwnProperty(
 <script>
 /* GCS admin console. The staff app (index.html) holds no admin code: its only trace is a link, shown after a server-side check.
    To add an admin feature: (1) add one case to the Switch in the GCS Admin flow (flows/build_solution.py, "GCS Admin"), (2) add one entry to SECTIONS below. */
-var ADMIN_VERSION = '3.4';
+var ADMIN_VERSION = '4.0';
 var CONFIG = {
-  adminUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/11/workflows/cc6e22e8e4e2461e93bdf68d491970d4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=g1-6GnhhJPCD4NijqvFnxp0hmxk4Rlxn21G2Y39_-As',   /* link of the GCS Admin flow; tools/set_flow_url.py fills it in after the flow package is imported */
+  adminUrl: '/api/gcs/admin',   /* the relay address of the GCS Admin flow (the flow address and key are in the Static Web App's settings, tools/protect_flow_keys.py) */
   msClientId: 'c098890f-66d9-43f0-a317-be3c4a4dd2a3',
   msTenantId: '7071904e-0319-4819-b370-23fcd73a07a6'
 };
@@ -564,6 +572,7 @@ var CONFIG = {
   function msClient() {
     if (msApp) return Promise.resolve(msApp);
     var Impl = window.__msalOverride || msal.PublicClientApplication;   /* __msalOverride is only used by automated tests */
+    clearStaleSignIn(); /* nothing of this page can be open yet: any sign-in marker found now is left over */
     msApp = new Impl({
       /* the folder address is the one registered for the app, so the pop-up needs no extra registration */
       auth: { clientId: CONFIG.msClientId, authority: 'https://login.microsoftonline.com/' + CONFIG.msTenantId, redirectUri: new URL('./', location.href).href },
@@ -571,7 +580,20 @@ var CONFIG = {
     });
     return msApp.initialize().then(function () { return msApp; });
   }
-  function popup(app) { return app.loginPopup({ scopes: SCOPES }).then(function (r) { app.setActiveAccount(r.account); account = r.account; return r.accessToken; }); }
+  /* A sign-in window that was still open when the page was reloaded leaves a marker in this tab's session storage, and the sign-in library then refuses every new sign-in with interaction_in_progress until the browser tab is closed and opened again. A page that has just started has no sign-in open, so a marker found at that moment is left over: remove it. */
+  function clearStaleSignIn() { try { sessionStorage.removeItem('msal.interaction.status'); } catch (e) {} }
+  var signInFlight = null; /* the one sign-in window this page has open: a second press joins it and is not refused */
+  function popup(app) {
+    if (signInFlight) return signInFlight;
+    var p = app.loginPopup({ scopes: SCOPES }).catch(function (e) {
+      if (e && e.errorCode === 'interaction_in_progress') { clearStaleSignIn(); return app.loginPopup({ scopes: SCOPES }); } /* a marker that no window of this page explains: clear it and ask once more */
+      throw e;
+    }).then(function (r) { app.setActiveAccount(r.account); account = r.account; return r.accessToken; });
+    signInFlight = p;
+    var done = function () { if (signInFlight === p) signInFlight = null; };
+    p.then(done, done);
+    return p;
+  }
   function msToken(interactive) {
     return msClient().then(function (app) {
       var acct = app.getActiveAccount() || app.getAllAccounts()[0];
@@ -587,7 +609,8 @@ var CONFIG = {
       for (var k = 0; k < localStorage.length; k++) { var key = localStorage.key(k); if (/^msal\./i.test(key) || key.indexOf(CONFIG.msClientId) >= 0) drop.push(key); }
       drop.forEach(function (key) { localStorage.removeItem(key); });
     } catch (e) {}
-    location.reload();
+    clearStaleSignIn();
+  location.reload();
   }
   $('signOut').addEventListener('click', signOut);
   /* appearance: Auto follows the browser's light or dark setting, Light and Dark override it (the design file reads data-theme on the page root). Kept per browser, under one key shared by the app and the console; the script in <head> applies it before the page paints. */
@@ -598,14 +621,26 @@ var CONFIG = {
     try { if (v === 'light' || v === 'dark') localStorage.setItem(THEME_KEY, v); else localStorage.removeItem(THEME_KEY); } catch (e) {}      // storage can be blocked: the choice then lasts until the page closes
     if (v === 'light' || v === 'dark') document.documentElement.setAttribute('data-theme', v); else document.documentElement.removeAttribute('data-theme');
   }
-  var themeBtn = $('themeBtn'), THEME_NEXT = { auto: 'light', light: 'dark', dark: 'auto' }, THEME_NAME = { auto: 'Auto', light: 'Light', dark: 'Dark' };
-  function themeShow() { var c = themeChoice(); themeBtn.textContent = 'Theme: ' + THEME_NAME[c]; themeBtn.title = 'Theme: ' + THEME_NAME[c] + '. Press to change to ' + THEME_NAME[THEME_NEXT[c]] + ' (Auto follows the light or dark setting of this browser).'; }
-  themeBtn.addEventListener('click', function () { setTheme(THEME_NEXT[themeChoice()]); themeShow(); });
+  var themeBtn = $('themeBtn'), THEME_NAME = { auto: 'Auto', light: 'Light', dark: 'Dark' };
+ function themeNext(c) { // each tap must change what the person sees: Auto goes to the opposite of the browser's own setting first, then to the browser's own, then back to Auto
+  var pref = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light', opp = pref === 'dark' ? 'light' : 'dark';
+  return c === 'auto' ? opp : c === opp ? pref : 'auto';
+}
+  function themeShow() { var c = themeChoice(); themeBtn.textContent = 'Theme: ' + THEME_NAME[c]; themeBtn.title = 'Theme: ' + THEME_NAME[c] + '. Press to change to ' + THEME_NAME[themeNext(c)] + ' (Auto follows the light or dark setting of this browser).'; }
+  themeBtn.addEventListener('click', function () { setTheme(themeNext(themeChoice())); themeShow(); });
   themeShow();
 
   /* ---------- the admin flow ---------- */
   function fail(code, msg) { var e = new Error(msg || code); e.code = code; return e; }
   /* the sign-in library reports a closed, blocked or timed-out sign-in window with an errorCode, not with our own code */
+  function signInProblem(e) { /* what the sign-in library says went wrong, in words */
+    var code = String((e && e.errorCode) || '');
+    if (/popup_window_error|empty_window_error/.test(code)) return 'Your browser blocked the sign-in window. Allow pop-ups for this site, then try again.';
+    if (/user_cancelled/.test(code)) return 'The sign-in window was closed before it finished. Press Sign in to try again.';
+    if (/monitor_window_timeout/.test(code)) return 'Sign-in took too long. Press Sign in to try again.';
+    if (/interaction_in_progress/.test(code)) return 'Another sign-in window is still open. Close it, then try again.';
+    return 'Sign-in did not finish. If a pop-up was blocked, allow pop-ups for this site and try again.';
+  }
   function popupTrouble(e) { return !!e && /user_cancelled|popup_window_error|interaction_in_progress|empty_window_error|monitor_window_timeout/i.test(String(e.errorCode || '')); }
   function adminApi(action, extra, interactive) {
     return msToken(!!interactive).then(function (tok) {
@@ -1376,7 +1411,7 @@ var CONFIG = {
       $('whoName').textContent = account ? account.username || '' : '';
       showScreen('console'); buildNav(); showSection(currentId());
     }).catch(function (e) {
-      if ((e && e.code === 'signin') || popupTrouble(e)) { $('signInMsg').textContent = interactive ? 'Sign-in did not finish. If a pop-up was blocked, allow pop-ups for this site and try again.' : ''; showScreen('sSignin'); }
+      if ((e && e.code === 'signin') || popupTrouble(e)) { $('signInMsg').textContent = interactive ? signInProblem(e) : ''; showScreen('sSignin'); }
       else if (e && e.code === 'notadmin') { $('naWho').textContent = account ? account.username || '' : ''; $('whoName').textContent = ''; showScreen('sNotAdmin'); }
       else problem('Could not reach the admin service. Check the connection and try again.');
     });

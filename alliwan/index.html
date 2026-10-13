@@ -93,7 +93,6 @@ textarea{min-height:84px;resize:vertical}
 .dup-box strong{font-weight:500}
 .error{color:var(--err);font-size:14px;margin-top:6px}
 .consent{display:flex;gap:10px;align-items:flex-start;margin:4px 0 18px;font-size:14px;color:var(--ink-2)}
-.consent input{width:20px;height:20px;margin:2px 0 0;flex:none;accent-color:var(--card)}
 .note-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
 .note-row label{margin:0}
 .editing{background:var(--surface);border:1px solid var(--accent);border-radius:var(--radius);padding:10px 12px;font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}
@@ -128,6 +127,8 @@ textarea{min-height:84px;resize:vertical}
 .seg button.on{background:var(--card);color:var(--card-ink)}
 .seg.theme{display:flex;width:100%}
 .seg.theme button{flex:1;min-height:44px;font-size:14px}
+.theme-chip{flex:none;min-height:36px;padding:6px 14px;white-space:nowrap}
+@media (max-width:340px){.theme-chip{padding:6px 9px;font-size:12px}}
 
 /* contacts list */
 .list-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
@@ -431,6 +432,14 @@ input,textarea{background:var(--field-bg);color:var(--ink);border:var(--bw-field
 input::placeholder,textarea::placeholder{color:var(--ink-2);opacity:.8}
 input:focus,textarea:focus{border-color:var(--focus);outline:2px solid var(--focus);outline-offset:0}
 input.guess{border-color:var(--accent);background:var(--guess-bg)}
+/* checkbox: drawn here, not by the browser. A browser's own tick takes its colour from accent-color and some browsers (iPhone Safari) draw it in a fixed colour, which vanished on the white box of the light look. Here the box and the tick use the text colour and the page colour, which always contrast with each other. */
+input[type="checkbox"]{-webkit-appearance:none;appearance:none;display:inline-grid;place-content:center;flex:none;width:24px;height:24px;min-height:0;padding:0;margin:0;border:2px solid var(--ink-2);border-radius:min(var(--radius),6px);background:var(--field-bg);color:var(--bg);cursor:pointer}
+input[type="checkbox"]::after{content:"";display:block;width:12px;height:6px;margin-top:-3px;border-left:3px solid currentColor;border-bottom:3px solid currentColor;transform:rotate(-45deg);opacity:0}
+input[type="checkbox"]:checked{background:var(--ink);border-color:var(--ink)}
+input[type="checkbox"]:checked::after{opacity:1}
+input[type="checkbox"]:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.consent input[type="checkbox"]{margin-top:1px}
+@media (forced-colors:active){input[type="checkbox"]{-webkit-appearance:auto;appearance:auto}}
 label{text-transform:var(--label-case);letter-spacing:var(--label-track)}
 label small{text-transform:none;letter-spacing:0}
 label.consent,.how,.trust{text-transform:none;letter-spacing:normal;font-family:var(--font)}   /* the consent sentence and the privacy text are read, not decoration: never capitals or spaced out */
@@ -540,6 +549,7 @@ details.opt.more>summary{min-height:48px;padding:10px 2px;font-family:var(--font
 <div class="app">
   <header class="top">
     <div class="wordmark"><button class="ver" id="verBtn" type="button" aria-label="Version history"></button><svg class="wm-mark" viewBox="0 0 76 92" aria-hidden="true"><path d="M38 0 C52 8 76 26 76 50 L76 92 L0 92 L0 50 C0 26 24 8 38 0 Z"/></svg><span class="wm-name" id="wmName">Al Liwan</span><span class="wm-sub" id="wmSub">Cards</span></div>
+    <button class="chip-btn theme-chip" id="themeBtn" type="button"></button>
     <span class="pill" id="storagePill" hidden></span>
   </header>
 
@@ -919,8 +929,10 @@ function(e){return e.hasOwnProperty("authorization_endpoint")&&e.hasOwnProperty(
    readerToken   Optional shared secret the endpoint checks.
    adminUrl      Link of the GCS Admin flow. The app only asks it "am I an admin?" to show a link to admin.html; the console itself is admin.html.
    readerCareful true only for the Claude worker: shows "Read again carefully" (slower, more accurate model). */
-var APP_VERSION = '3.4';
+var APP_VERSION = '4.0';
 var CHANGELOG = [
+  ['4.0', 'Oct 13, 2026', 'The flow addresses are no longer in the page. The app talks to a relay on its own site that holds them, so nobody can read a key from the page. The reader address form and the setup links are gone: a link can no longer point the app somewhere else. Nothing else changes.'],
+  ['3.5', 'Oct 13, 2026', 'The light and dark button is now in the top bar of the app, next to the version: every tap changes the look, and after Light and Dark it goes back to Auto, which follows your phone or browser. It used to be inside Settings, four taps down; Settings still has it too. The consent tick box can now be seen in the light look, and a sign-in that was interrupted no longer blocks the next try. Nothing else changes.'],
   ['3.4', 'Oct 13, 2026', 'A light and dark switch. In the app, Settings now starts with Appearance: Auto follows the light or dark setting of your phone or browser, Light and Dark override it. The admin console has a Theme button in its top bar that goes through the same three. The choice is kept on this browser and is shared by the app and the console. Nothing else changes.'],
   ['3.3', 'Oct 13, 2026', 'Photos of cards are cropped more carefully. The app now finds the card by its edges and crops only when it is sure; when the card is hard to see (a patterned desk, a hand over a corner, a card the colour of the table) it keeps the whole photo instead of warping it. If reading the cropped photo finds nothing, the app tries the whole photo by itself, and Read again carefully now reads the whole photo, so you no longer have to retake it. Everything else works as before.'],
   ['3.2', 'Oct 12, 2026', 'A new look, in two versions. The group\u2019s version follows the Al Liwan Labs design language (dark or light, as your phone is set) and its screens are shorter: My card keeps Share and Edit up front and the other actions sit under More ways to use your card; Capture folds job title, website and address into More details; Contacts folds export and settings into one menu. The other version is the Great Teacher Onizuka one, louder, with everything in view. Everything works as before.'],
@@ -947,13 +959,14 @@ var CHANGELOG = [
   ['1.1', 'Sep 30, 2026', 'Front and back photos, automatic crop, reading by AI Builder in Power Automate.'],
   ['1.0', 'Sep 29, 2026', 'First version: own QR card, capture, contacts list, CSV and JSON export.']
 ];
+/* The addresses below are this site's own relay (/api/gcs/<name>). The real flow addresses carry a secret key and live only in the Static Web App's settings (tools/protect_flow_keys.py); no page and no file in the repository holds one. */
 var CONFIG = {
-  readerUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/14/workflows/04697d93dbbe49d59ae1857b8071bcab/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=0g8OOt4Z5ZtUI6uV9TFZXa3G4wa7ODSTUEEqaR5Ugo0',
+  readerUrl: '/api/gcs/reader',
   readerToken: '',
   readerCareful: false,
-  saveUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/02/workflows/406b0e0123f24bd1a2336b73b64aab13/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=0Qac5qN3UOwhEb07O--gffgF1Hj-NbzpiV6qyNolC1Y',
-  publishUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/08/workflows/96f7caa1d6b5441591a6f0b8a9d64796/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=cRhnPJvAQrIlgS92tM04VEcEhR4b8DtQI1iSI9z5KIo',   /* Power Automate 'Publish my card' flow. Checks the Microsoft sign-in before saving. */
-  adminUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/11/workflows/cc6e22e8e4e2461e93bdf68d491970d4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=g1-6GnhhJPCD4NijqvFnxp0hmxk4Rlxn21G2Y39_-As',     /* link of the GCS Admin flow (the admin console, admin.html). Empty = the app shows no Admin link. tools/set_flow_url.py fills it in after the flow package is imported. */
+  saveUrl: '/api/gcs/save',
+  publishUrl: '/api/gcs/publish',   /* the relay address of the Publish my card flow. The flow checks the Microsoft sign-in before saving. */
+  adminUrl: '/api/gcs/admin',     /* the relay address of the GCS Admin flow (the admin console, admin.html). Empty = the app shows no Admin link. */
   quirks: false,    /* true = playful Great Teacher Onizuka wording in a few places. false = plain wording. */
   variant: 'alliwan',   /* the look: 'alliwan' (the Al Liwan Labs design language, for the group) or 'dev' (the Onizuka look). tools/make_variants.py sets it, with the matching data-variant on <html>. */
   requireSignIn: true, /* true = the app asks for the Microsoft work sign-in before anything else (needs msClientId). */
@@ -1384,14 +1397,26 @@ var CONFIG = {
       for (var k = 0; k < localStorage.length; k++) { var key = localStorage.key(k); if (/^msal\./i.test(key) || (CONFIG.msClientId && key.indexOf(CONFIG.msClientId) >= 0)) drop.push(key); }
       drop.forEach(function (key) { localStorage.removeItem(key); });
     } catch (e) {}
-    location.reload();
+    clearStaleSignIn();
+  location.reload();
   }
   $('signOutPhone').hidden = !msReady();
   $('signOutPhone').addEventListener('click', signOutPhone);
+  var lockBusy = false;
+  function signInProblem(e) { /* what the sign-in library says went wrong, in words */
+    var code = String((e && e.errorCode) || '');
+    if (/popup_window_error|empty_window_error/.test(code)) return 'Your browser blocked the sign-in window. Allow pop-ups for this page, then tap Sign in again.';
+    if (/user_cancelled/.test(code)) return 'The sign-in window was closed before it finished. Tap Sign in to try again.';
+    if (/monitor_window_timeout/.test(code)) return 'Sign-in took too long. Tap Sign in to try again.';
+    if (/interaction_in_progress/.test(code)) return 'Another sign-in window is still open. Close it, then tap Sign in again.';
+    return 'Sign-in didn\u2019t finish. Try again.';
+  }
   $('lockSignIn').addEventListener('click', function () {
-    $('lockMsg').textContent = 'Opening Microsoft sign-in\u2026';
+    if (lockBusy) { $('lockMsg').textContent = 'A Microsoft sign-in window is already open. Finish it there, or close it and tap Sign in again.'; return; }
+    lockBusy = true; $('lockMsg').textContent = 'Opening Microsoft sign-in\u2026';
     msToken(true).then(function (tok) { if (!tok) throw new Error('no token'); markSignedIn(); unlockedOffline = false; lockApp(false); showTab('card'); toast('Signed in'); setTimeout(probeAdmin, 800); })
-      .catch(function () { $('lockMsg').textContent = 'Sign-in didn\u2019t finish. Try again.'; });
+    .catch(function (e) { $('lockMsg').textContent = signInProblem(e); })
+    .then(function () { lockBusy = false; });
   });
 
   /* ---------- personality: Great Teacher Onizuka mode (CONFIG.quirks) ---------- */
@@ -1591,43 +1616,12 @@ var CONFIG = {
   /* ---------- capture: card photos, auto crop & reading ---------- */
   var sampleFn = null, readCaps = null, sampleOk = false, readCtl = null, useCrop = true;
   var shots = { front: null, back: null };
-  var readerCfg = store.get(K.reader, null) || {};
-  function readerUrl() { return String(CONFIG.readerUrl || readerCfg.url || '').trim(); }   /* built-in secured flow wins over an older pasted link */
-  function readerToken() { return String(readerCfg.token || CONFIG.readerToken || ''); }
-  function saveUrl() { return String(CONFIG.saveUrl || readerCfg.saveUrl || '').trim(); }
-  function publishUrl() { return String(readerCfg.publishUrl || CONFIG.publishUrl || '').trim(); }
+  store.del(K.reader); /* an address a person pasted in an older version is removed: the only addresses are the ones in CONFIG, which are this site's own relay */
+  function readerUrl() { return String(CONFIG.readerUrl || '').trim(); }
+  function readerToken() { return String(CONFIG.readerToken || ''); }
+  function saveUrl() { return String(CONFIG.saveUrl || '').trim(); }
+  function publishUrl() { return String(CONFIG.publishUrl || '').trim(); }
   function canRead() { return !!readerUrl() || sampleOk; }
-  function hostOf(u) { try { return new URL(u).host; } catch (e) { return String(u); } }
-  function parseSetupLink() {
-    var h = location.hash.slice(1); if (!h) return null;
-    var m = h.match(/(?:^|&)reader=([^&]+)/); if (!m) return null;
-    var url; try { url = decodeURIComponent(m[1]); } catch (e) { return null; }
-    if (!/^https:\/\//i.test(url)) return null;
-    var t = h.match(/(?:^|&)rtoken=([^&]+)/), token = '';
-    if (t) { try { token = decodeURIComponent(t[1]); } catch (e) {} }
-    var sv = h.match(/(?:^|&)saver=([^&]+)/), saver = '';
-    if (sv) { try { saver = decodeURIComponent(sv[1]); } catch (e) {} if (!/^https:\/\//i.test(saver)) saver = ''; }
-    var pb = h.match(/(?:^|&)publisher=([^&]+)/), publisher = '';
-    if (pb) { try { publisher = decodeURIComponent(pb[1]); } catch (e) {} if (!/^https:\/\//i.test(publisher)) publisher = ''; }
-    return { url: url, token: token, saveUrl: saver, publishUrl: publisher };
-  }
-  function setupLinkFor(cfg) {
-    return location.href.split('#')[0] + '#reader=' + encodeURIComponent(cfg.url) + (cfg.token ? '&rtoken=' + encodeURIComponent(cfg.token) : '') + (cfg.saveUrl ? '&saver=' + encodeURIComponent(cfg.saveUrl) : '') + (cfg.publishUrl ? '&publisher=' + encodeURIComponent(cfg.publishUrl) : '');
-  }
-  function offerSetupLink() {
-    var incoming = parseSetupLink();
-    if (!incoming || (incoming.url === readerCfg.url && incoming.token === (readerCfg.token || '') && (incoming.saveUrl || '') === (readerCfg.saveUrl || '') && (incoming.publishUrl || '') === (readerCfg.publishUrl || ''))) return;
-    var body = openSheet('Connect the card reader');
-    body.appendChild(el('p', null, 'This link connects the app to the card reader at'));
-    var host = el('p', 'host-line', hostOf(incoming.url)); body.appendChild(host);
-    body.appendChild(el('p', null, (incoming.saveUrl ? 'Photos of cards you capture are sent there to be read, and saved contacts go to your company\u2019s Dataverse. ' : 'Photos of cards you capture are sent there to be read. ') + 'Connect only if the link came from your company.'));
-    var row = el('div', 'row');
-    var ok = el('button', 'btn btn-primary', 'Connect'); ok.type = 'button';
-    ok.addEventListener('click', function () { readerCfg = incoming; store.set(K.reader, readerCfg); closeSheet(); updatePhotoUI(); toast('Card reader connected'); });
-    var no = el('button', 'btn btn-secondary', 'Not now'); no.type = 'button';
-    no.addEventListener('click', closeSheet);
-    row.appendChild(ok); row.appendChild(no); body.appendChild(row);
-  }
   useCap('sample', 12000).then(function (fn) {
     sampleFn = fn;
     if (!fn || typeof fn.limits !== 'function') { updatePhotoUI(); return; }
@@ -1640,7 +1634,20 @@ var CONFIG = {
     themeMem = v === 'light' || v === 'dark' ? v : 'auto';
     try { if (v === 'light' || v === 'dark') localStorage.setItem(THEME_KEY, v); else localStorage.removeItem(THEME_KEY); } catch (e) {}      // storage can be blocked: the choice then lasts until the page closes
     if (v === 'light' || v === 'dark') document.documentElement.setAttribute('data-theme', v); else document.documentElement.removeAttribute('data-theme');
+    themeSync();
   }
+  var themeBtn = document.getElementById('themeBtn'), THEME_NAME = { auto: 'Auto', light: 'Light', dark: 'Dark' };
+  function themeNext(c) { // each tap must change what the person sees: Auto goes to the opposite of the browser's own setting first, then to the browser's own, then back to Auto
+    var pref = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light', opp = pref === 'dark' ? 'light' : 'dark';
+    return c === 'auto' ? opp : c === opp ? pref : 'auto';
+  }
+  // the top-bar button says the current choice and moves on one step per tap (the console's Theme button does the same); when the Settings sheet is open its three choices follow too
+  function themeSync() {
+    var c = themeChoice();
+    if (themeBtn) { themeBtn.textContent = 'Theme: ' + THEME_NAME[c]; themeBtn.title = 'Theme: ' + THEME_NAME[c] + '. Tap to change to ' + THEME_NAME[themeNext(c)] + ' (Auto follows the light or dark setting of this phone or browser).'; }
+    [].forEach.call(document.querySelectorAll('#themeSwitch button'), function (b) { var on = b.dataset.theme === c; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+  }
+  if (themeBtn) { themeBtn.addEventListener('click', function () { setTheme(themeNext(themeChoice())); }); themeSync(); }
   function themeSwitch() {
     var wrap = el('div', 'seg theme'), opts = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']];
     wrap.id = 'themeSwitch'; wrap.setAttribute('role', 'group'); wrap.setAttribute('aria-label', 'Appearance');
@@ -1653,42 +1660,13 @@ var CONFIG = {
     body.appendChild(el('h3', 'h3', 'Appearance'));
     body.appendChild(themeSwitch());
     var ah = el('p', 'hint', 'Auto follows the light or dark setting of this device. The choice is kept on this browser.'); ah.style.marginTop = '10px'; body.appendChild(ah);
-    var connected = !!readerUrl();
     body.appendChild(el('h3', 'h3', 'Card reader'));
-    body.appendChild(el('p', null, connected ? 'Card photos are read by the company reader. There is nothing to set up.' : 'Where card photos are sent to be read. Paste the reader address here once, then send colleagues the setup link so their phones connect with one tap.'));
-    var f = el('form'); f.noValidate = true;
-    var l1 = el('label', null, 'Reader URL'); var i1 = el('input'); i1.type = 'url'; i1.placeholder = 'https://\u2026'; i1.value = readerCfg.url || ''; i1.autocomplete = 'off'; l1.appendChild(i1);
-    var l2 = el('label', null, 'Token (optional)'); var i2 = el('input'); i2.type = 'text'; i2.value = readerCfg.token || ''; i2.autocomplete = 'off'; l2.appendChild(i2);
-    var l3 = el('label', null, 'Save to Dataverse URL (optional)'); var i3 = el('input'); i3.type = 'url'; i3.placeholder = 'https://\u2026'; i3.value = readerCfg.saveUrl || ''; i3.autocomplete = 'off'; l3.appendChild(i3);
-    l1.style.marginTop = '14px'; l2.style.marginTop = '10px'; l3.style.marginTop = '10px';
-    var l4 = el('label', null, 'Publish card URL (optional)'); var i4 = el('input'); i4.type = 'url'; i4.placeholder = 'https://\u2026'; i4.value = readerCfg.publishUrl || ''; i4.autocomplete = 'off'; l4.appendChild(i4); l4.style.marginTop = '10px';
-    f.appendChild(l1); f.appendChild(l2); f.appendChild(l3); f.appendChild(l4);
-    var row = el('div', 'row');
-    var save = el('button', 'btn btn-primary', 'Save'); save.type = 'submit';
-    var clear = el('button', 'btn btn-secondary', 'Use the built-in setting'); clear.type = 'button';
-    clear.addEventListener('click', function () { readerCfg = {}; store.del(K.reader); closeSheet(); updatePhotoUI(); toast(readerUrl() ? 'Using the built-in reader' : 'No reader configured'); });
-    row.appendChild(save); row.appendChild(clear); f.appendChild(row);
-    if (!connected) { var note = el('p', 'hint', 'No built-in reader in this copy.'); note.style.marginTop = '12px'; f.appendChild(note); }   // the built-in address (it carries a key) is never shown on screen
-    f.addEventListener('submit', function (ev) {
-      ev.preventDefault();
-      var u = i1.value.trim(), sv = i3.value.trim(), pbv = i4.value.trim();
-      if ((u && !/^https:\/\//i.test(u)) || (sv && !/^https:\/\//i.test(sv)) || (pbv && !/^https:\/\//i.test(pbv))) { toast('Addresses must start with https://'); return; }
-      readerCfg = { url: u, token: i2.value.trim(), saveUrl: sv, publishUrl: pbv }; store.set(K.reader, readerCfg);
-      closeSheet(); updatePhotoUI(); toast(u ? 'Reader saved' : 'Reader cleared');
-    });
-    var adv = el('details', 'opt'); adv.open = !connected; adv.appendChild(el('summary', null, 'Advanced: connection addresses')); adv.appendChild(f); body.appendChild(adv);
+    body.appendChild(el('p', null, readerUrl() ? 'Card photos are read by the company reader. There is nothing to set up.' : 'No card reader is set up in this copy of the app.'));
     if (publishUrl() && msReady()) {
       body.appendChild(el('h3', 'h3', 'My data'));
       body.appendChild(el('p', null, 'Removes your published card and the leads addressed to you from the company database. Contacts you captured are kept.'));
       var fm = el('button', 'btn btn-secondary danger btn-block', 'Remove my card and my leads from Dataverse'); fm.type = 'button'; fm.style.marginTop = '10px';
       fm.addEventListener('click', forgetMe); body.appendChild(fm);
-    }
-    if (readerCfg.url || readerCfg.saveUrl || readerCfg.publishUrl) {
-      var share = el('button', 'btn btn-secondary btn-block', 'Copy setup link for colleagues'); share.type = 'button'; share.style.marginTop = '14px';
-      share.addEventListener('click', function () { copyText(setupLinkFor(readerCfg), 'Setup link copied'); });
-      body.appendChild(share);
-      var warn = el('p', null, 'Anyone who opens that link gets the reader connected, so share it only inside the company (Teams or email).'); warn.style.marginTop = '10px'; warn.style.fontSize = '14px';
-      body.appendChild(warn);
     }
   }
   $('readerSetup').addEventListener('click', openReaderSettings);
@@ -2726,19 +2704,36 @@ var CONFIG = {
   function msClient() {
     if (msApp) return Promise.resolve(msApp);
     var Impl = window.__msalOverride || msal.PublicClientApplication;   /* __msalOverride is only used by automated tests */
+    clearStaleSignIn(); /* nothing of this page can be open yet: any sign-in marker found now is left over */
     msApp = new Impl({
       auth: { clientId: CONFIG.msClientId, authority: 'https://login.microsoftonline.com/' + CONFIG.msTenantId, redirectUri: location.href.split(/[?#]/)[0] },
       cache: { cacheLocation: 'localStorage' }
     });
     return msApp.initialize().then(function () { return msApp; });
   }
+  /* A sign-in window that was still open when the page was reloaded (a phone can reload the app when you come back from the sign-in window) leaves a marker in this tab's session storage, and the sign-in library then refuses every new sign-in with interaction_in_progress until the app is closed and opened again. A page that has just started has no sign-in open, so a marker found at that moment is left over: remove it. */
+  function clearStaleSignIn() { try { sessionStorage.removeItem('msal.interaction.status'); } catch (e) {} }
+  var signInFlight = null; /* the one sign-in window this page has open: a second tap joins it and is not refused (the library refuses a second window, and the first can be hidden behind the app) */
+  function msPopup(app, scopes) {
+    var key = scopes.join(' ');
+    if (signInFlight && signInFlight.key === key) return signInFlight;
+    var free = !signInFlight;
+    var p = app.loginPopup({ scopes: scopes }).catch(function (e) {
+      if (free && e && e.errorCode === 'interaction_in_progress') { clearStaleSignIn(); return app.loginPopup({ scopes: scopes }); } /* a marker that no window of this page explains: clear it and ask once more */
+      throw e;
+    }).then(function (r) { app.setActiveAccount(r.account); return r.accessToken; });
+    p.key = key; signInFlight = p;
+    var done = function () { if (signInFlight === p) signInFlight = null; };
+    p.then(done, done);
+    return p;
+  }
   function msToken(interactive, extraScopes) {
     var scopes = ['User.Read'].concat(extraScopes || []);
     return msClient().then(function (app) {
       var acct = app.getActiveAccount() || app.getAllAccounts()[0];
       if (acct) app.setActiveAccount(acct);
-      if (acct) return app.acquireTokenSilent({ scopes: scopes, account: acct }).then(function (r) { return r.accessToken; }, function () { return interactive ? app.loginPopup({ scopes: scopes }).then(function (r) { app.setActiveAccount(r.account); return r.accessToken; }) : null; });
-      return interactive ? app.loginPopup({ scopes: scopes }).then(function (r) { app.setActiveAccount(r.account); return r.accessToken; }) : null;
+      if (acct) return app.acquireTokenSilent({ scopes: scopes, account: acct }).then(function (r) { return r.accessToken; }, function () { return interactive ? msPopup(app, scopes) : null; });
+      return interactive ? msPopup(app, scopes) : null;
     });
   }
   /* ---------- Outlook contacts (R31): writes the contact into the signed-in user's own mailbox ---------- */
@@ -2879,7 +2874,6 @@ var CONFIG = {
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {}); } catch (e) {}
   if (navigator.standalone === false && !settings.hideInstall) $('installHint').hidden = false;
   $('installDismiss').addEventListener('click', function () { settings.hideInstall = true; store.set(K.settings, settings); $('installHint').hidden = true; });
-  offerSetupLink();
   setTimeout(function () { syncAll(true); }, 1500);
   initLeads();
   setTimeout(function () { processQueue(true); }, 4000);

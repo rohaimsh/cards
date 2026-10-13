@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#101112">
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; font-src data:; script-src 'unsafe-inline'; connect-src https:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; font-src data:; script-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'">
 <title>Digital card</title>
 <style>
 :root{box-sizing:border-box}
@@ -85,7 +85,6 @@ textarea{min-height:88px;resize:vertical}
 .field.bad input,.field.bad textarea{border-color:var(--err)}
 .err{color:var(--err);font-size:14px;margin-top:6px}
 .consent{display:flex;gap:12px;align-items:flex-start;margin:6px 0 18px;font-size:14px;color:var(--ink-2);font-weight:400}
-.consent input{width:22px;height:22px;min-height:22px;margin:1px 0 0;flex:none;accent-color:var(--icon,var(--card))}
 .hp{position:absolute;inset-inline-start:-9999px;width:1px;height:1px;overflow:hidden}
 .how{margin-top:14px;font-size:13px;color:var(--ink-2)}
 .how summary{cursor:pointer}
@@ -294,6 +293,14 @@ input,textarea{background:var(--field-bg);color:var(--ink);border:var(--bw-field
 input::placeholder,textarea::placeholder{color:var(--ink-2);opacity:.8}
 input:focus,textarea:focus{border-color:var(--focus);outline:2px solid var(--focus);outline-offset:0}
 input.guess{border-color:var(--accent);background:var(--guess-bg)}
+/* checkbox: drawn here, not by the browser. A browser's own tick takes its colour from accent-color and some browsers (iPhone Safari) draw it in a fixed colour, which vanished on the white box of the light look. Here the box and the tick use the text colour and the page colour, which always contrast with each other. */
+input[type="checkbox"]{-webkit-appearance:none;appearance:none;display:inline-grid;place-content:center;flex:none;width:24px;height:24px;min-height:0;padding:0;margin:0;border:2px solid var(--ink-2);border-radius:min(var(--radius),6px);background:var(--field-bg);color:var(--bg);cursor:pointer}
+input[type="checkbox"]::after{content:"";display:block;width:12px;height:6px;margin-top:-3px;border-left:3px solid currentColor;border-bottom:3px solid currentColor;transform:rotate(-45deg);opacity:0}
+input[type="checkbox"]:checked{background:var(--ink);border-color:var(--ink)}
+input[type="checkbox"]:checked::after{opacity:1}
+input[type="checkbox"]:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.consent input[type="checkbox"]{margin-top:1px}
+@media (forced-colors:active){input[type="checkbox"]{-webkit-appearance:auto;appearance:auto}}
 label{text-transform:var(--label-case);letter-spacing:var(--label-track)}
 label small{text-transform:none;letter-spacing:0}
 label.consent,.how,.trust{text-transform:none;letter-spacing:normal;font-family:var(--font)}   /* the consent sentence and the privacy text are read, not decoration: never capitals or spaced out */
@@ -490,27 +497,28 @@ details.opt.more>summary{min-height:48px;padding:10px 2px;font-family:var(--font
 
 <script>
 /* ===== Settings (edit before publishing) =====
-   cardUrl   Power Automate "Get card" flow URL. When set, links like card.html?c=ID load the card from Dataverse (verified).
-   leadUrl   Power Automate "Card page lead" flow URL. Where the visitor form is sent. Empty = the form is hidden (demo still shows it).
+   The addresses below are this site's own relay (/api/gcs/<name>). The real flow addresses carry a secret key and live only in the Static Web App's settings (tools/protect_flow_keys.py); no page and no file in the repository holds one.
+   cardUrl   The relay address of the "Get card" flow (/api/gcs/card). When set, links like card.html?c=ID load the card from Dataverse (verified).
+   leadUrl   The relay address the visitor form is sent to (the same flow as cardUrl). Empty = the form is hidden (demo still shows it).
    privacyUrl  Link to the privacy notice. Empty = a short default text is shown instead.
    allowLinkCards  true = links that carry the card inside the link (#z=, #d=) are shown, marked "not verified". Set false once Dataverse cards are live.
    brand     Company colours for the card page, for example {card: '#0E3B43', card2: '#1A525C', accent: '#C8963E'}. null = the default teal and gold. Six-digit hex only.
    noteMax   Longest note a visitor can leave. The Card Leads note column was widened to 500 on Oct 8 (tools/widen_columns.py --apply --write-widths); if you change its width again, rebuild the flows and set the new width here (the tool prints it).
    logo      Company logo as a data URI (PNG, SVG, JPEG or WebP, under 30 KB). Empty = no logo. tools/logo_to_datauri.py makes one from an image file.
-   trackUrl  Power Automate "GCS Track" flow URL (tools/set_flow_url.py fills it in). Counts card page views, saves and call, email and WhatsApp taps for the admin Analytics page.
+   trackUrl  The relay address of the "GCS Track" flow (/api/gcs/track). Counts card page views, saves and call, email and WhatsApp taps for the admin Analytics page.
              Counts only: nothing identifying is written to the database (no IP address, browser string or visitor identity). Empty = nothing is counted.
    quirks    true = playful Great Teacher Onizuka wording and sample card (English only). Set false for plain professional wording. */
-var PAGE_VERSION = '3.4';
+var PAGE_VERSION = '4.0';
 var CONFIG = {
-  cardUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/26/workflows/3cae8d3bf3a54d079a1bbe95bda554f6/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=1NFydb7KaYRQJZyj9UWp53kJkryIkDRn1I-GErgmOPQ',
-  vcardUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/00/workflows/a58f4d59c3b448fab87803caf8179efe/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=5klYhy4Rf5XEa8N8CRIBc0jEjrgWvzryj5kP5UGJ9z4',    /* Power Automate "GCS vCard" flow (GET). Phones open this as a real .vcf and add the contact. */
-  leadUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/26/workflows/3cae8d3bf3a54d079a1bbe95bda554f6/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=1NFydb7KaYRQJZyj9UWp53kJkryIkDRn1I-GErgmOPQ',
+  cardUrl: '/api/gcs/card',
+  vcardUrl: '/api/gcs/vcard',    /* the relay address of the "GCS vCard" flow (GET). Phones open this as a real .vcf and add the contact. */
+  leadUrl: '/api/gcs/card',
   privacyUrl: '',
   allowLinkCards: true,
   noteMax: 500,
   brand: null,
   logo: '',
-  trackUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/13/workflows/eea98aad356c4848828b46696811305b/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=RqqdovA3aOmc5TU9MOWUGuurv8X33IO1azUxmZ_lJYc',
+  trackUrl: '/api/gcs/track',
   variant: 'alliwan',   /* the look: 'alliwan' or 'dev'. tools/make_variants.py sets it, with the matching data-variant on <html>. */
   quirks: false
 };
@@ -775,12 +783,13 @@ var QUIRKS = {
     return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
   /* A real .vcf link served by the Get card flow. Phones open it in Contacts (the share sheet and blob downloads do not). */
+  function relayUrl(base, query) { return base + (base.indexOf('?') < 0 ? '?' : '&') + query; }
   function vcardLink() {
     if (!CONFIG.vcardUrl) return '';
-    if (state.mode === 'server' && state.cardId) return CONFIG.vcardUrl + '&id=' + encodeURIComponent(state.cardId);
+    if (state.mode === 'server' && state.cardId) return relayUrl(CONFIG.vcardUrl, 'id=' + encodeURIComponent(state.cardId));
     var c = state.card, o = { f: c.first, l: c.last, t: c.title, o: c.company, m: c.mobile, p: c.office, e: c.email, u: c.web, s: c.address }, p = {};
     Object.keys(o).forEach(function (k) { if (o[k]) p[k] = o[k]; });
-    return CONFIG.vcardUrl + '&d=' + b64url(JSON.stringify(p));
+    return relayUrl(CONFIG.vcardUrl, 'd=' + b64url(JSON.stringify(p)));
   }
   /* ---------- page analytics: counts only ----------
      One small message per view or tap goes to the GCS Track flow (CONFIG.trackUrl): the card id, what happened, a coarse device class, the page language and how the page
