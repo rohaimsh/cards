@@ -1,0 +1,8 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "FLOW_CARD": "(the flow address: set it with tools/protect_flow_keys.py, never paste it here)"
+  }
+}

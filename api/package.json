@@ -1,0 +1,10 @@
+{
+  "name": "gcs-relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GCS relay: the pages call /api/gcs/<name>; this adds the secret key of the Power Automate flow (kept in the app settings) and passes the request on.",
+  "main": "src/functions/*.js",
+  "dependencies": {
+    "@azure/functions": "^4.0.0"
+  }
+}

@@ -1,5 +1,7 @@
-# Deploys the alliwan/ folder (the Al Liwan group's look of the three pages) to Azure Static Web Apps on every push to main.
-# The repo root is what GitHub Pages serves; Azure serves only alliwan/ (its staticwebapp.config.json is in that folder).
+# Deploys the alliwan/ folder (the three pages) and the api/ folder (the relay) to Azure Static Web Apps on every push to main.
+# The pages call /api/gcs/<name> on their own address; the relay (api/) adds the secret key of the Power Automate flow, which lives only in the
+# Static Web App's settings (tools/protect_flow_keys.py), never in a page or in this repository.
+# The repo root is what GitHub Pages serves; Azure serves only alliwan/ and api/ (the site's staticwebapp.config.json is in alliwan/).
 # One-time setup: create the Static Web App (Free plan) in the Azure portal, copy its deployment token
 # into the repo secret AZURE_STATIC_WEB_APPS_API_TOKEN, and commit this file to .github/workflows/.
 name: Deploy GCS to Azure Static Web Apps
@@ -17,5 +19,6 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           action: upload
           app_location: "/alliwan"
+          api_location: "api"
           output_location: ""
           skip_app_build: true
