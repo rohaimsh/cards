@@ -6,6 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#101112">
 <title>Al Liwan Cards admin</title>
+<script>try{var t=localStorage.getItem('gcs_theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <style>
 :root{box-sizing:border-box}
 *,*::before,*::after{box-sizing:inherit}
@@ -433,6 +434,7 @@ details.opt.more>summary{min-height:48px;padding:10px 2px;font-family:var(--font
     <div class="who">
       <span id="whoName"></span>
       <a class="chip-btn" href="./">Back to the app</a>
+      <button class="chip-btn" id="themeBtn" type="button"></button>
       <button class="chip-btn" id="signOut" type="button" hidden>Sign out</button>
     </div>
   </header>
@@ -542,7 +544,7 @@ function(e){return e.hasOwnProperty("authorization_endpoint")&&e.hasOwnProperty(
 <script>
 /* GCS admin console. The staff app (index.html) holds no admin code: its only trace is a link, shown after a server-side check.
    To add an admin feature: (1) add one case to the Switch in the GCS Admin flow (flows/build_solution.py, "GCS Admin"), (2) add one entry to SECTIONS below. */
-var ADMIN_VERSION = '3.3';
+var ADMIN_VERSION = '3.4';
 var CONFIG = {
   adminUrl: 'https://496cd15ef7b5ed46a2948c69766efb.47.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/11/workflows/cc6e22e8e4e2461e93bdf68d491970d4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=g1-6GnhhJPCD4NijqvFnxp0hmxk4Rlxn21G2Y39_-As',   /* link of the GCS Admin flow; tools/set_flow_url.py fills it in after the flow package is imported */
   msClientId: 'c098890f-66d9-43f0-a317-be3c4a4dd2a3',
@@ -588,6 +590,18 @@ var CONFIG = {
     location.reload();
   }
   $('signOut').addEventListener('click', signOut);
+  /* appearance: Auto follows the browser's light or dark setting, Light and Dark override it (the design file reads data-theme on the page root). Kept per browser, under one key shared by the app and the console; the script in <head> applies it before the page paints. */
+  var THEME_KEY = 'gcs_theme', themeMem = null;       // themeMem: the choice made on this page, so it holds even where the browser will not save it
+  function themeChoice() { if (themeMem) return themeMem; var v = null; try { v = localStorage.getItem(THEME_KEY); } catch (e) {} return v === 'light' || v === 'dark' ? v : 'auto'; }
+  function setTheme(v) {
+    themeMem = v === 'light' || v === 'dark' ? v : 'auto';
+    try { if (v === 'light' || v === 'dark') localStorage.setItem(THEME_KEY, v); else localStorage.removeItem(THEME_KEY); } catch (e) {}      // storage can be blocked: the choice then lasts until the page closes
+    if (v === 'light' || v === 'dark') document.documentElement.setAttribute('data-theme', v); else document.documentElement.removeAttribute('data-theme');
+  }
+  var themeBtn = $('themeBtn'), THEME_NEXT = { auto: 'light', light: 'dark', dark: 'auto' }, THEME_NAME = { auto: 'Auto', light: 'Light', dark: 'Dark' };
+  function themeShow() { var c = themeChoice(); themeBtn.textContent = 'Theme: ' + THEME_NAME[c]; themeBtn.title = 'Theme: ' + THEME_NAME[c] + '. Press to change to ' + THEME_NAME[THEME_NEXT[c]] + ' (Auto follows the light or dark setting of this browser).'; }
+  themeBtn.addEventListener('click', function () { setTheme(THEME_NEXT[themeChoice()]); themeShow(); });
+  themeShow();
 
   /* ---------- the admin flow ---------- */
   function fail(code, msg) { var e = new Error(msg || code); e.code = code; return e; }

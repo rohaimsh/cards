@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#101112">
 <title>Al Liwan Cards</title>
+<script>try{var t=localStorage.getItem('gcs_theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <style>
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 *,*::before,*::after{box-sizing:inherit}
@@ -125,6 +126,8 @@ textarea{min-height:84px;resize:vertical}
 .seg{display:inline-flex;margin-top:14px;border:1px solid var(--line);border-radius:999px;background:var(--bg);padding:3px}
 .seg button{font:inherit;font-size:13px;font-weight:500;border:0;background:transparent;color:var(--ink-2);padding:6px 14px;border-radius:999px;cursor:pointer;min-height:32px}
 .seg button.on{background:var(--card);color:var(--card-ink)}
+.seg.theme{display:flex;width:100%}
+.seg.theme button{flex:1;min-height:44px;font-size:14px}
 
 /* contacts list */
 .list-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
@@ -916,8 +919,9 @@ function(e){return e.hasOwnProperty("authorization_endpoint")&&e.hasOwnProperty(
    readerToken   Optional shared secret the endpoint checks.
    adminUrl      Link of the GCS Admin flow. The app only asks it "am I an admin?" to show a link to admin.html; the console itself is admin.html.
    readerCareful true only for the Claude worker: shows "Read again carefully" (slower, more accurate model). */
-var APP_VERSION = '3.3';
+var APP_VERSION = '3.4';
 var CHANGELOG = [
+  ['3.4', 'Oct 13, 2026', 'A light and dark switch. In the app, Settings now starts with Appearance: Auto follows the light or dark setting of your phone or browser, Light and Dark override it. The admin console has a Theme button in its top bar that goes through the same three. The choice is kept on this browser and is shared by the app and the console. Nothing else changes.'],
   ['3.3', 'Oct 13, 2026', 'Photos of cards are cropped more carefully. The app now finds the card by its edges and crops only when it is sure; when the card is hard to see (a patterned desk, a hand over a corner, a card the colour of the table) it keeps the whole photo instead of warping it. If reading the cropped photo finds nothing, the app tries the whole photo by itself, and Read again carefully now reads the whole photo, so you no longer have to retake it. Everything else works as before.'],
   ['3.2', 'Oct 12, 2026', 'A new look, in two versions. The group\u2019s version follows the Al Liwan Labs design language (dark or light, as your phone is set) and its screens are shorter: My card keeps Share and Edit up front and the other actions sit under More ways to use your card; Capture folds job title, website and address into More details; Contacts folds export and settings into one menu. The other version is the Great Teacher Onizuka one, louder, with everything in view. Everything works as before.'],
   ['3.1', 'Oct 11, 2026', 'Privacy and accountability for admins. The admin console has an Audit page (who looked at the lists, searched for a person, exported or deleted what, and whether the nightly clean-up ran), a Privacy page to find everything held about a person, copy it or erase it on request, and a safer clean-up that shows what it would delete first. Nothing changes in how you scan, save, share or publish cards.'],
@@ -1629,8 +1633,26 @@ var CONFIG = {
     if (!fn || typeof fn.limits !== 'function') { updatePhotoUI(); return; }
     fn.limits().then(function (l) { readCaps = l; sampleOk = !!(l && l.images); updatePhotoUI(); }, function () { updatePhotoUI(); });
   });
+  /* appearance: Auto follows the browser's light or dark setting, Light and Dark override it (the design file reads data-theme on the page root). Kept per browser, under one key shared by the app and the console; the script in <head> applies it before the page paints. */
+  var THEME_KEY = 'gcs_theme', themeMem = null;       // themeMem: the choice made on this page, so it holds even where the browser will not save it
+  function themeChoice() { if (themeMem) return themeMem; var v = null; try { v = localStorage.getItem(THEME_KEY); } catch (e) {} return v === 'light' || v === 'dark' ? v : 'auto'; }
+  function setTheme(v) {
+    themeMem = v === 'light' || v === 'dark' ? v : 'auto';
+    try { if (v === 'light' || v === 'dark') localStorage.setItem(THEME_KEY, v); else localStorage.removeItem(THEME_KEY); } catch (e) {}      // storage can be blocked: the choice then lasts until the page closes
+    if (v === 'light' || v === 'dark') document.documentElement.setAttribute('data-theme', v); else document.documentElement.removeAttribute('data-theme');
+  }
+  function themeSwitch() {
+    var wrap = el('div', 'seg theme'), opts = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']];
+    wrap.id = 'themeSwitch'; wrap.setAttribute('role', 'group'); wrap.setAttribute('aria-label', 'Appearance');
+    function mark() { var now = themeChoice(); [].forEach.call(wrap.children, function (b) { var on = b.dataset.theme === now; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }); }
+    opts.forEach(function (o) { var b = el('button', null, o[1]); b.type = 'button'; b.dataset.theme = o[0]; b.addEventListener('click', function () { setTheme(o[0]); mark(); }); wrap.appendChild(b); });
+    mark(); return wrap;
+  }
   function openReaderSettings() {
     var body = openSheet('Settings');
+    body.appendChild(el('h3', 'h3', 'Appearance'));
+    body.appendChild(themeSwitch());
+    var ah = el('p', 'hint', 'Auto follows the light or dark setting of this device. The choice is kept on this browser.'); ah.style.marginTop = '10px'; body.appendChild(ah);
     var connected = !!readerUrl();
     body.appendChild(el('h3', 'h3', 'Card reader'));
     body.appendChild(el('p', null, connected ? 'Card photos are read by the company reader. There is nothing to set up.' : 'Where card photos are sent to be read. Paste the reader address here once, then send colleagues the setup link so their phones connect with one tap.'));
