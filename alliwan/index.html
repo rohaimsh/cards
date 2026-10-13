@@ -916,8 +916,9 @@ function(e){return e.hasOwnProperty("authorization_endpoint")&&e.hasOwnProperty(
    readerToken   Optional shared secret the endpoint checks.
    adminUrl      Link of the GCS Admin flow. The app only asks it "am I an admin?" to show a link to admin.html; the console itself is admin.html.
    readerCareful true only for the Claude worker: shows "Read again carefully" (slower, more accurate model). */
-var APP_VERSION = '3.2';
+var APP_VERSION = '3.3';
 var CHANGELOG = [
+  ['3.3', 'Oct 13, 2026', 'Photos of cards are cropped more carefully. The app now finds the card by its edges and crops only when it is sure; when the card is hard to see (a patterned desk, a hand over a corner, a card the colour of the table) it keeps the whole photo instead of warping it. If reading the cropped photo finds nothing, the app tries the whole photo by itself, and Read again carefully now reads the whole photo, so you no longer have to retake it. Everything else works as before.'],
   ['3.2', 'Oct 12, 2026', 'A new look, in two versions. The group\u2019s version follows the Al Liwan Labs design language (dark or light, as your phone is set) and its screens are shorter: My card keeps Share and Edit up front and the other actions sit under More ways to use your card; Capture folds job title, website and address into More details; Contacts folds export and settings into one menu. The other version is the Great Teacher Onizuka one, louder, with everything in view. Everything works as before.'],
   ['3.1', 'Oct 11, 2026', 'Privacy and accountability for admins. The admin console has an Audit page (who looked at the lists, searched for a person, exported or deleted what, and whether the nightly clean-up ran), a Privacy page to find everything held about a person, copy it or erase it on request, and a safer clean-up that shows what it would delete first. Nothing changes in how you scan, save, share or publish cards.'],
   ['3.0', 'Oct 9, 2026', 'Analytics. The admin console now has a full Analytics page: page views, Save contact taps, leads and captures for the last 7, 30 or 90 days with the change since the period before, a day-by-day chart, how each card performs, how cards are opened (QR code, shared link, email signature or NFC tag), devices, people, companies and events, and CSV export. Views are counted by a small counter on the card page; what it saves holds no IP address, browser details or visitor identity, and it respects Do Not Track. Links the app makes now say how they will be used, so a QR scan can be told from a shared link; the NFC help has its own link to copy.'],
@@ -1774,81 +1775,213 @@ var CONFIG = {
     });
   }
 
-  /* auto crop: find the card, straighten it */
+  /* auto crop: find the card, straighten it.
+     The card is found from its EDGES, not from a patch of colour: edge pixels vote for straight lines (a Hough transform), every card-shaped set of four lines is tried,
+     and a set is used only when all four sides are really there as an edge in the photo. A thumb over a corner, a shadow, a patterned desk or a card the colour of the
+     desk leave the sides unproven, and then there is NO crop: the app keeps the full photo, which always reads, while a wrong crop turns the text to mush.
+     Tuned and checked on made-up photos of cards (tests/autocrop_scenes.py, tests/test_autocrop.py); the numbers are in docs/AUTOCROP.md. */
+  var CROP = {
+    size: 480,         // the photo is searched at this width (px)
+    minEdge: 64,       // the weakest edge that counts (sum of the two Sobel parts, about a 16 level step) ...
+    topShare: 0.07,    // ... or the strength of the strongest 7 % of the pixels when that is higher (a busy desk)
+    peaks: 100, minVotes: 16, minPts: 30, lines: 60, minLen: 0.07, tol: 20,   // Hough peaks tried (a peak holds only about 40 % of a side's pixels), the weakest peak, the fewest pixels on a real line, the lines kept
+    minArea: 0.07,     // a card that fills less than 7 % of the photo is not cropped (the crop would not read any better, and a small quad is easily some other object)
+    accept: 0.62, minSide: 0.4,   // how much of the four sides has to be seen as edge: on average, and on the weakest side
+    minContrast: 20,   // three of the four sides must show a real colour change across the edge (a card stands out from what it lies on; a checked cloth lines up with its own pattern but does not)
+    grow: 1.012        // the crop is a hair wider than the found edges, so the card's own border is never cut
+  };
+  var lastCrop = null;
   function fitCanvas(src, max) {
-    var sc = Math.min(1, max / Math.max(src.width, src.height));
-    var c = document.createElement('canvas'); c.width = Math.max(1, Math.round(src.width * sc)); c.height = Math.max(1, Math.round(src.height * sc));
-    c.getContext('2d').drawImage(src, 0, 0, c.width, c.height); return c;
-  }
-  function otsu(hist, total) {
-    var sum = 0, t; for (t = 0; t < 256; t++) sum += t * hist[t];
-    var sumB = 0, wB = 0, varMax = 0, thr = 0;
-    for (t = 0; t < 256; t++) {
-      wB += hist[t]; if (!wB) continue; var wF = total - wB; if (!wF) break;
-      sumB += t * hist[t]; var mB = sumB / wB, mF = (sum - sumB) / wF, v = wB * wF * (mB - mF) * (mB - mF);
-      if (v > varMax) { varMax = v; thr = t; }
+    var sc = Math.min(1, max / Math.max(src.width, src.height)), w = Math.max(1, Math.round(src.width * sc)), h = Math.max(1, Math.round(src.height * sc)), cur = src, c;
+    while (cur.width >= w * 2 && cur.height >= h * 2) {            // one big step turns fine texture into false edges: halve until it is less than twice too big
+      c = document.createElement('canvas'); c.width = Math.max(w, cur.width >> 1); c.height = Math.max(h, cur.height >> 1);
+      c.getContext('2d').drawImage(cur, 0, 0, c.width, c.height); cur = c;
     }
-    return thr;
+    c = document.createElement('canvas'); c.width = w; c.height = h;
+    c.getContext('2d').drawImage(cur, 0, 0, w, h); return c;
   }
-  function dilate(mask, w, h, r) {
-    var tmp = new Uint8Array(mask.length), out = new Uint8Array(mask.length), x, y, k, a, b;
-    for (y = 0; y < h; y++) { var row = y * w; for (x = 0; x < w; x++) if (mask[row + x]) { a = Math.max(0, x - r); b = Math.min(w - 1, x + r); for (k = a; k <= b; k++) tmp[row + k] = 1; } }
-    for (y = 0; y < h; y++) for (x = 0; x < w; x++) if (tmp[y * w + x]) { a = Math.max(0, y - r); b = Math.min(h - 1, y + r); for (k = a; k <= b; k++) out[k * w + x] = 1; }
-    return out;
+  function blur121(a, w, h) {
+    var t = new Uint8Array(a.length), o = new Uint8Array(a.length), x, y, i;
+    for (y = 0; y < h; y++) { i = y * w; t[i] = (3 * a[i] + a[i + 1]) >> 2; for (x = 1; x < w - 1; x++) t[i + x] = (a[i + x - 1] + 2 * a[i + x] + a[i + x + 1]) >> 2; t[i + w - 1] = (a[i + w - 2] + 3 * a[i + w - 1]) >> 2; }
+    for (x = 0; x < w; x++) o[x] = (3 * t[x] + t[x + w]) >> 2;
+    for (y = 1; y < h - 1; y++) for (x = 0; x < w; x++) { i = y * w + x; o[i] = (t[i - w] + 2 * t[i] + t[i + w]) >> 2; }
+    for (x = 0; x < w; x++) { i = (h - 1) * w + x; o[i] = (t[i - w] + 3 * t[i]) >> 2; }
+    return o;
   }
-  function largestComponent(mask, w, h) {
-    var n = w * h, labels = new Int32Array(n), stack = new Int32Array(n), best = 0, bestCount = 0, cur = 0;
-    for (var i = 0; i < n; i++) {
-      if (!mask[i] || labels[i]) continue;
-      cur++; var count = 0, sp = 0; stack[sp++] = i; labels[i] = cur;
-      while (sp) {
-        var p = stack[--sp]; count++; var x = p % w, y = (p - x) / w;
-        if (x > 0 && mask[p - 1] && !labels[p - 1]) { labels[p - 1] = cur; stack[sp++] = p - 1; }
-        if (x < w - 1 && mask[p + 1] && !labels[p + 1]) { labels[p + 1] = cur; stack[sp++] = p + 1; }
-        if (y > 0 && mask[p - w] && !labels[p - w]) { labels[p - w] = cur; stack[sp++] = p - w; }
-        if (y < h - 1 && mask[p + w] && !labels[p + w]) { labels[p + w] = cur; stack[sp++] = p + w; }
+  function cropEdges(px, w, h) {          // thin edge pixels with the direction of their gradient (the way the picture gets lighter)
+    var n = w * h, i, x, y, c, a, sx, sy, m, bm, bx, by, ch = [new Uint8Array(n), new Uint8Array(n), new Uint8Array(n)];
+    for (i = 0; i < n; i++) { ch[0][i] = px[i * 4]; ch[1][i] = px[i * 4 + 1]; ch[2][i] = px[i * 4 + 2]; }
+    for (c = 0; c < 3; c++) ch[c] = blur121(ch[c], w, h);
+    var gx = new Int16Array(n), gy = new Int16Array(n), mag = new Uint16Array(n), hist = new Uint32Array(256);
+    for (y = 1; y < h - 1; y++) for (x = 1; x < w - 1; x++) {
+      i = y * w + x; bm = 0; bx = 0; by = 0;
+      for (c = 0; c < 3; c++) {          // the colour channel that changes most here, so a blue patch on a grey desk is an edge although it is as bright
+        a = ch[c];
+        sx = a[i - w + 1] + 2 * a[i + 1] + a[i + w + 1] - a[i - w - 1] - 2 * a[i - 1] - a[i + w - 1];
+        sy = a[i + w - 1] + 2 * a[i + w] + a[i + w + 1] - a[i - w - 1] - 2 * a[i - w] - a[i - w + 1];
+        m = (sx < 0 ? -sx : sx) + (sy < 0 ? -sy : sy);
+        if (m > bm) { bm = m; bx = sx; by = sy; }
       }
-      if (count > bestCount) { bestCount = count; best = cur; }
+      gx[i] = bx; gy[i] = by; mag[i] = bm; hist[bm >> 3]++;
     }
-    return best ? { label: best, labels: labels, count: bestCount } : null;
-  }
-  function boundaryPoints(labels, w, h, label) {
-    var pts = [];
-    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
-      var i = y * w + x; if (labels[i] !== label) continue;
-      if (x === 0 || y === 0 || x === w - 1 || y === h - 1 || labels[i - 1] !== label || labels[i + 1] !== label || labels[i - w] !== label || labels[i + w] !== label) pts.push([x, y]);
+    var cut = (w - 2) * (h - 2) * CROP.topShare, seen = 0, T = 0;
+    for (i = 255; i >= 0; i--) { seen += hist[i]; if (seen >= cut) { T = i << 3; break; } }
+    T = Math.max(CROP.minEdge, T);
+    var cap = n >> 1, ex = new Int16Array(cap), ey = new Int16Array(cap), ea = new Float32Array(cap), eo = new Uint8Array(n), ne = 0, ax, ay, n1, n2, ang;
+    for (y = 1; y < h - 1; y++) for (x = 1; x < w - 1; x++) {
+      i = y * w + x; m = mag[i]; if (m < T) continue;
+      ax = gx[i] < 0 ? -gx[i] : gx[i]; ay = gy[i] < 0 ? -gy[i] : gy[i];
+      if (ay * 2 < ax) { n1 = i - 1; n2 = i + 1; } else if (ax * 2 < ay) { n1 = i - w; n2 = i + w; }
+      else if ((gx[i] > 0) === (gy[i] > 0)) { n1 = i - w - 1; n2 = i + w + 1; } else { n1 = i - w + 1; n2 = i + w - 1; }
+      if (m < mag[n1] || m <= mag[n2] || ne >= cap) continue;       // only the ridge of an edge stays
+      ang = Math.atan2(gy[i], gx[i]) * 57.29578; if (ang < 0) ang += 360;
+      ex[ne] = x; ey[ne] = y; ea[ne] = ang; ne++; eo[i] = 1 + (((ang % 180) / 2) | 0) % 90;     // eo: 0 = no edge, else the line direction in 2 degree steps (1..90)
     }
-    return pts;
+    return { ex: ex, ey: ey, ea: ea, ne: ne, eo: eo, gx: gx, gy: gy, ch: ch, w: w, h: h, T: T };
   }
-  function cross(o, a, b) { return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]); }
-  function convexHull(pts) {
-    pts.sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
-    var lower = [], upper = [], i;
-    for (i = 0; i < pts.length; i++) { while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], pts[i]) <= 0) lower.pop(); lower.push(pts[i]); }
-    for (i = pts.length - 1; i >= 0; i--) { while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], pts[i]) <= 0) upper.pop(); upper.push(pts[i]); }
-    upper.pop(); lower.pop(); return lower.concat(upper);
-  }
-  function polyArea(q) { var a = 0; for (var i = 0; i < q.length; i++) { var j = (i + 1) % q.length; a += q[i][0] * q[j][1] - q[j][0] * q[i][1]; } return Math.abs(a) / 2; }
-  function orderCorners(q) {
-    var cx = 0, cy = 0, i; for (i = 0; i < 4; i++) { cx += q[i][0] / 4; cy += q[i][1] / 4; }
-    var s = q.slice().sort(function (a, b) { return Math.atan2(a[1] - cy, a[0] - cx) - Math.atan2(b[1] - cy, b[0] - cx); });
-    var start = 0, min = Infinity; for (i = 0; i < 4; i++) { var v = s[i][0] + s[i][1]; if (v < min) { min = v; start = i; } }
-    return [s[start], s[(start + 1) % 4], s[(start + 2) % 4], s[(start + 3) % 4]];
-  }
-  function bestQuad(hull) {
-    var m = hull.length, i, j; if (m < 4) return null;
-    if (m > 400) { var step = m / 400, thin = []; for (i = 0; i < m; i += step) thin.push(hull[Math.floor(i)]); hull = thin; m = hull.length; }
-    var idx = [0, 0, 0, 0], far = -1;
-    for (i = 0; i < m; i++) for (j = i + 1; j < m; j++) { var dx = hull[i][0] - hull[j][0], dy = hull[i][1] - hull[j][1], d = dx * dx + dy * dy; if (d > far) { far = d; idx[0] = i; idx[2] = j; } }
-    var b1 = -Infinity, b3 = -Infinity;
-    for (i = 0; i < m; i++) { var c = cross(hull[idx[0]], hull[idx[2]], hull[i]); if (c > b1) { b1 = c; idx[1] = i; } if (-c > b3) { b3 = -c; idx[3] = i; } }
-    var quad = idx.map(function (k) { return hull[k]; });
-    var A = polyArea(orderCorners(quad)), improved = true, iter = 0;
-    while (improved && iter++ < 5) {
-      improved = false;
-      for (var v = 0; v < 4; v++) for (i = 0; i < m; i++) { var q = quad.slice(); q[v] = hull[i]; var a = polyArea(orderCorners(q)); if (a > A + 0.5) { A = a; quad = q; improved = true; } }
+  function fitLine(E, thDeg, rho, cx, cy) {      // the straight line the edge pixels near (angle, distance) lie on: least squares, then grown along the edge twice, and where it was seen
+    var th = thDeg * Math.PI / 180, c = Math.cos(th), s = Math.sin(th), k, x, y, j, pass, pts = [], keep, ang;
+    for (k = 0; k < E.ne; k++) {
+      if (Math.abs((((E.ea[k] - thDeg) % 360) + 540) % 360 - 180) > 14) continue;
+      if (Math.abs((E.ex[k] - cx) * c + (E.ey[k] - cy) * s - rho) <= 3.5) pts.push(k);
     }
-    return orderCorners(quad);
+    var mx = 0, my = 0, sxx, sxy, syy, phi, dx = 0, dy = 0, nx = c, ny = s, inl = pts;
+    for (pass = 0; pass < 4; pass++) {
+      if (inl.length < CROP.minPts) return null;
+      mx = 0; my = 0; for (j = 0; j < inl.length; j++) { mx += E.ex[inl[j]]; my += E.ey[inl[j]]; } mx /= inl.length; my /= inl.length;
+      sxx = 0; sxy = 0; syy = 0; for (j = 0; j < inl.length; j++) { x = E.ex[inl[j]] - mx; y = E.ey[inl[j]] - my; sxx += x * x; sxy += x * y; syy += y * y; }
+      phi = 0.5 * Math.atan2(2 * sxy, sxx - syy); dx = Math.cos(phi); dy = Math.sin(phi);
+      if (-dy * nx + dx * ny < 0) { nx = dy; ny = -dx; } else { nx = -dy; ny = dx; }          // the normal keeps pointing the way the gradient does (which side is lighter)
+      if (pass < 3) {                                                                         // every edge pixel now on the fitted line, as far as it goes, pointing the same way
+        ang = Math.atan2(ny, nx) * 57.29578; keep = [];
+        for (k = 0; k < E.ne; k++) {
+          x = E.ex[k] - mx; y = E.ey[k] - my;
+          if (Math.abs(x * nx + y * ny) > 2.2 || Math.abs((((E.ea[k] - ang) % 360) + 540) % 360 - 180) > 16) continue;
+          keep.push(k);
+        }
+        inl = keep;
+      }
+    }
+    var t0 = 1e9, t1 = -1e9, t, nb, occ, cnt = 0, bi;
+    for (j = 0; j < inl.length; j++) { t = (E.ex[inl[j]] - mx) * dx + (E.ey[inl[j]] - my) * dy; if (t < t0) t0 = t; if (t > t1) t1 = t; }
+    nb = Math.floor((t1 - t0) / 5) + 1; occ = new Uint8Array(nb);
+    for (j = 0; j < inl.length; j++) { t = (E.ex[inl[j]] - mx) * dx + (E.ey[inl[j]] - my) * dy; bi = Math.floor((t - t0) / 5); if (!occ[bi]) { occ[bi] = 1; cnt++; } }
+    return { mx: mx, my: my, dx: dx, dy: dy, nx: nx, ny: ny, t0: t0, t1: t1, occ: occ, nb: nb, n: inl.length, len: t1 - t0, cov: cnt / nb };
+  }
+  function cropLines(E) {       // Hough transform over the edge pixels, each voting for the lines its own direction allows; the strongest peaks, each refitted
+    var w = E.w, h = E.h, NA = 180, cx = w / 2, cy = h / 2, Dh = Math.ceil(Math.hypot(w, h) / 2) + 2, RB = 2, NR = Math.ceil(2 * Dh / RB) + 3;
+    var acc = new Float32Array(NA * NR), cs = new Float32Array(NA + 2), sn = new Float32Array(NA + 2), k, b, d, j, q, th;
+    for (b = 0; b < NA + 2; b++) { th = ((b - 1) * 2 + 1) * Math.PI / 180; cs[b] = Math.cos(th); sn[b] = Math.sin(th); }
+    for (k = 0; k < E.ne; k++) {
+      var xs = E.ex[k] - cx, ys = E.ey[k] - cy, u0 = (E.ea[k] / 2) | 0;
+      for (d = -1; d <= 1; d++) {
+        var u = u0 + d, r = (xs * cs[u + 1] + ys * sn[u + 1] + Dh) / RB, ri = r | 0, f = r - ri, wt = d ? 0.5 : 1, base = ((u + NA) % NA) * NR;
+        acc[base + ri] += wt * (1 - f); acc[base + ri + 1] += wt * f;
+      }
+    }
+    var cand = [], minLen = Math.max(w, h) * CROP.minLen, pk, best, bi, pb, pr, bb, rr, L, lines = [], dup, e;
+    for (pk = 0; pk < CROP.peaks; pk++) {
+      best = 0; bi = -1; for (j = 0; j < acc.length; j++) if (acc[j] > best) { best = acc[j]; bi = j; }
+      if (best < CROP.minVotes) break;
+      pb = (bi / NR) | 0; pr = bi - pb * NR;
+      for (d = -3; d <= 3; d++) { bb = ((pb + d + NA) % NA) * NR; for (q = -6; q <= 6; q++) { rr = pr + q; if (rr >= 0 && rr < NR) acc[bb + rr] = 0; } }
+      L = fitLine(E, pb * 2 + 1, pr * RB - Dh + RB / 2, cx, cy);
+      if (L && L.len >= minLen && L.cov >= 0.5) cand.push(L);
+    }
+    cand.sort(function (a, b) { return b.n - a.n; });
+    for (k = 0; k < cand.length && lines.length < CROP.lines; k++) {       // the same edge found twice (two peaks that grew into one line) counts once
+      dup = false;
+      for (e = 0; e < lines.length && !dup; e++) dup = Math.abs(lines[e].nx * cand[k].nx + lines[e].ny * cand[k].ny) > 0.9976 && Math.abs((cand[k].mx - lines[e].mx) * lines[e].nx + (cand[k].my - lines[e].my) * lines[e].ny) < 3.5;
+      if (!dup) lines.push(cand[k]);
+    }
+    return lines;
+  }
+  function meet(A, B) {         // where two lines cross (null when they are nearly parallel)
+    var r1 = A.nx * A.mx + A.ny * A.my, r2 = B.nx * B.mx + B.ny * B.my, det = A.nx * B.ny - A.ny * B.nx;
+    return Math.abs(det) < 0.25 ? null : [(r1 * B.ny - r2 * A.ny) / det, (A.nx * r2 - B.nx * r1) / det];
+  }
+  function sideSupport(L, P, Q) {     // how much of the stretch P-Q of line L was seen as edge (from the line's own record of where its edge pixels are)
+    var ta = (P[0] - L.mx) * L.dx + (P[1] - L.my) * L.dy, tb = (Q[0] - L.mx) * L.dx + (Q[1] - L.my) * L.dy, lo = Math.min(ta, tb), hi = Math.max(ta, tb), len = hi - lo, sup = 0, b, bl, bh;
+    if (len < 1) return 0;
+    for (b = Math.max(0, Math.floor((lo - L.t0) / 5)); b <= Math.min(L.nb - 1, Math.floor((hi - L.t0) / 5)); b++) {
+      bl = Math.max(lo, L.t0 + b * 5); bh = Math.min(hi, L.t0 + b * 5 + 5); if (L.occ[b] && bh > bl) sup += bh - bl;
+    }
+    return sup / len;
+  }
+  function cropQuads(lines, w, h, stats) {       // every card-shaped set of four lines: two nearly parallel pairs about a right angle apart
+    var n = lines.length, i, j, p, q, k, pairs = [], minSide = Math.min(w, h) * 0.12, area = w * h, m = Math.max(w, h) * 0.05, out = [];
+    function span(L, ux, uy) { var a = (L.mx + L.dx * L.t0) * ux + (L.my + L.dy * L.t0) * uy, b = (L.mx + L.dx * L.t1) * ux + (L.my + L.dy * L.t1) * uy; return a < b ? [a, b] : [b, a]; }
+    for (i = 0; i < n; i++) for (j = i + 1; j < n; j++) {
+      var A = lines[i], B = lines[j];
+      if (Math.abs(A.nx * B.nx + A.ny * B.ny) < 0.906) continue;                         // within about 25 degrees of parallel
+      if (Math.abs((B.mx - A.mx) * A.nx + (B.my - A.my) * A.ny) < minSide) continue;     // far enough apart to be two sides of a card
+      var sg = (A.dx * B.dx + A.dy * B.dy) < 0 ? -1 : 1, ux = A.dx + sg * B.dx, uy = A.dy + sg * B.dy, ul = Math.hypot(ux, uy) || 1; ux /= ul; uy /= ul;
+      var sa = span(A, ux, uy), sb = span(B, ux, uy), ov = Math.min(sa[1], sb[1]) - Math.max(sa[0], sb[0]);
+      if (ov < 0.35 * Math.min(A.len, B.len)) continue;                                  // and they have to face each other
+      pairs.push({ a: A, b: B, ux: ux, uy: uy });
+    }
+    stats.pairs = pairs.length; stats.shaped = 0;
+    for (p = 0; p < pairs.length; p++) for (q = p + 1; q < pairs.length; q++) {
+      var P = pairs[p], Q = pairs[q];
+      if (P.a === Q.a || P.a === Q.b || P.b === Q.a || P.b === Q.b) continue;
+      if (Math.abs(P.ux * Q.ux + P.uy * Q.uy) > 0.5) continue;                             // the two directions at least 60 degrees apart
+      var c = [meet(P.a, Q.a), meet(P.a, Q.b), meet(P.b, Q.b), meet(P.b, Q.a)], sd = [P.a, Q.b, P.b, Q.a], ar = 0, ok = true;
+      if (!c[0] || !c[1] || !c[2] || !c[3]) continue;
+      for (k = 0; k < 4; k++) ar += c[k][0] * c[(k + 1) % 4][1] - c[(k + 1) % 4][0] * c[k][1];
+      ar /= 2; if (ar < 0) { c = [c[3], c[2], c[1], c[0]]; sd = [sd[2], sd[1], sd[0], sd[3]]; ar = -ar; }     // clockwise on the screen
+      if (ar < area * 0.02 || ar > area * 0.97) continue;
+      var l = [], cx = 0, cy = 0;
+      for (k = 0; k < 4; k++) {
+        var P0 = c[k], P1 = c[(k + 1) % 4], P2 = c[(k + 2) % 4];
+        if (P0[0] < -m || P0[1] < -m || P0[0] > w + m || P0[1] > h + m) ok = false;
+        if ((P1[0] - P0[0]) * (P2[1] - P1[1]) - (P1[1] - P0[1]) * (P2[0] - P1[0]) <= 0) ok = false;       // convex
+        l.push(Math.hypot(P1[0] - P0[0], P1[1] - P0[1])); cx += P0[0] / 4; cy += P0[1] / 4;
+      }
+      if (!ok || Math.min(l[0], l[1], l[2], l[3]) < minSide) continue;
+      if (l[0] / l[2] > 2 || l[2] / l[0] > 2 || l[1] / l[3] > 2 || l[3] / l[1] > 2) continue;
+      for (k = 0; k < 4 && ok; k++) {                                                      // every corner within 50..130 degrees (a card seen at an angle is not a rectangle)
+        var a0 = c[(k + 3) % 4], a1 = c[k], a2 = c[(k + 1) % 4], cs0 = ((a0[0] - a1[0]) * (a2[0] - a1[0]) + (a0[1] - a1[1]) * (a2[1] - a1[1])) / (l[(k + 3) % 4] * l[k]);
+        if (cs0 > 0.643 || cs0 < -0.643) ok = false;
+      }
+      var ow = (l[0] + l[2]) / 2, oh = (l[1] + l[3]) / 2, ratio = Math.max(ow, oh) / Math.min(ow, oh);
+      if (!ok || ratio < 1.12 || ratio > 2.8) continue;
+      stats.shaped++;
+      var s = [], sum = 0, mn = 1;
+      for (k = 0; k < 4; k++) { s.push(sideSupport(sd[k], c[k], c[(k + 1) % 4])); sum += s[k]; if (s[k] < mn) mn = s[k]; }
+      if (mn < 0.2 || sum / 4 < 0.5) continue;
+      out.push({ c: c, sd: sd, cheap: sum / 4, area: ar, ratio: ratio, cx: cx, cy: cy });
+    }
+    out.sort(function (a, b) { return b.cheap - a.cheap; });
+    return out.slice(0, 24);
+  }
+  function checkSides(E, cand) {      // look at the pixels along each side: is there an edge pointing the right way, and is the card lighter (or darker) inside on all four sides?
+    var c = cand.c, k, j, sides = [], fr = 0, mn = 1, plus = 0, minus = 0, D = [];
+    for (k = 0; k < 4; k++) {
+      var A = c[k], B = c[(k + 1) % 4], len = Math.hypot(B[0] - A[0], B[1] - A[1]), ux = (B[0] - A[0]) / len, uy = (B[1] - A[1]) / len, mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2;
+      var il = Math.hypot(cand.cx - mx, cand.cy - my) || 1, inx = (cand.cx - mx) / il, iny = (cand.cy - my) / il, nAng = (Math.atan2(uy, ux) * 57.29578 + 450) % 180;
+      var steps = Math.max(10, Math.floor(len / 3)), sup = 0, tot = 0, pos = 0, neg = 0, f, x, y, xi, yi, xx, yy, o, dd, hit, gi = 0, dt, r, bx, by, si = [0, 0, 0], so = [0, 0, 0], ni = 0, no = 0, q, pol;
+      for (j = 0; j <= steps; j++) {
+        f = 0.04 + 0.92 * j / steps; x = A[0] + (B[0] - A[0]) * f; y = A[1] + (B[1] - A[1]) * f; xi = Math.round(x); yi = Math.round(y);
+        if (xi < 2 || yi < 2 || xi >= E.w - 2 || yi >= E.h - 2) continue;          // outside the picture: nothing to see there, and it is not held against the card
+        tot++; hit = 0;
+        for (yy = yi - 2; yy <= yi + 2 && !hit; yy++) for (xx = xi - 2; xx <= xi + 2; xx++) {
+          o = E.eo[yy * E.w + xx]; if (!o) continue;
+          dd = Math.abs(((((o * 2 - 1) - nAng) % 180) + 270) % 180 - 90);
+          if (dd <= CROP.tol) { hit = 1; gi = yy * E.w + xx; break; }
+        }
+        if (hit) { sup++; dt = E.gx[gi] * inx + E.gy[gi] * iny; if (dt > 0) pos++; else if (dt < 0) neg++; }
+        for (r = 3; r <= 7; r += 2) {           // the average colour just inside and just outside this side, over its whole length (a pattern averages out, a card's edge does not)
+          bx = Math.round(x + inx * r); by = Math.round(y + iny * r); if (bx >= 0 && by >= 0 && bx < E.w && by < E.h) { q = by * E.w + bx; si[0] += E.ch[0][q]; si[1] += E.ch[1][q]; si[2] += E.ch[2][q]; ni++; }
+          bx = Math.round(x - inx * r); by = Math.round(y - iny * r); if (bx >= 0 && by >= 0 && bx < E.w && by < E.h) { q = by * E.w + bx; so[0] += E.ch[0][q]; so[1] += E.ch[1][q]; so[2] += E.ch[2][q]; no++; }
+        }
+      }
+      D.push(ni && no ? Math.hypot(si[0] / ni - so[0] / no, si[1] / ni - so[1] / no, si[2] / ni - so[2] / no) : 0);
+      sides.push(tot ? sup / tot : 0); fr += sides[k]; if (sides[k] < mn) mn = sides[k];
+      pol = pos > neg ? 1 : (neg > pos ? -1 : 0); if (pol > 0) plus++; else if (pol < 0) minus++;
+    }
+    D.sort(function (a, b) { return a - b; });
+    cand.sides = sides; cand.S = fr / 4; cand.min = mn; cand.cons = Math.max(plus, minus); cand.D = D; cand.Dmed = D[1];     // Dmed: the colour change of the second weakest side
+    return cand;
   }
   function solve8(A, B) {
     var n = B.length, M = A.map(function (row, i) { return row.concat([B[i]]); }), col, r, k;
@@ -1888,45 +2021,33 @@ var CONFIG = {
     }
     octx.putImageData(od, 0, 0); return out;
   }
-  function autoCrop(img, srcCanvas) {
-    var small = fitCanvas(img, 480), w = small.width, h = small.height, n = w * h;
-    if (w < 40 || h < 40) return null;
-    var px = small.getContext('2d').getImageData(0, 0, w, h).data, i, j, x, y;
-    var gray = new Uint8ClampedArray(n);
-    for (i = 0, j = 0; i < n; i++, j += 4) gray[i] = (px[j] * 77 + px[j + 1] * 151 + px[j + 2] * 28) >> 8;
-    var band = Math.max(4, Math.round(Math.min(w, h) * 0.03)), rs = [], gs = [], bs = [];
-    for (y = 0; y < h; y++) for (x = 0; x < w; x++) if (x < band || y < band || x >= w - band || y >= h - band) { var k = (y * w + x) * 4; rs.push(px[k]); gs.push(px[k + 1]); bs.push(px[k + 2]); }
-    function median(arr) { arr.sort(function (p, q) { return p - q; }); return arr[arr.length >> 1]; }
-    var br = median(rs), bg = median(gs), bb = median(bs);
-    var mask = new Uint8Array(n), dist = new Uint8ClampedArray(n), hist = new Uint32Array(256);
-    for (i = 0, j = 0; i < n; i++, j += 4) { var dr = px[j] - br, dg = px[j + 1] - bg, db = px[j + 2] - bb; var dv = Math.sqrt(dr * dr + dg * dg + db * db) * 0.58; dist[i] = dv > 255 ? 255 : dv; hist[dist[i]]++; }
-    var T = Math.max(20, otsu(hist, n));
-    for (i = 0; i < n; i++) if (dist[i] > T) mask[i] = 1;
-    for (y = 1; y < h - 1; y++) for (x = 1; x < w - 1; x++) {
-      i = y * w + x;
-      var gx = -gray[i - w - 1] - 2 * gray[i - 1] - gray[i + w - 1] + gray[i - w + 1] + 2 * gray[i + 1] + gray[i + w + 1];
-      var gy = -gray[i - w - 1] - 2 * gray[i - w] - gray[i - w + 1] + gray[i + w - 1] + 2 * gray[i + w] + gray[i + w + 1];
-      if (Math.abs(gx) + Math.abs(gy) > 170) mask[i] = 1;
+  function autoCrop(img, srcCanvas) {       // img is not needed any more (the search runs on srcCanvas); the signature stays, tests call it
+    lastCrop = null;
+    var small = fitCanvas(srcCanvas, CROP.size), w = small.width, h = small.height, k, i, stats = {};
+    if (w < 80 || h < 80) { lastCrop = { accepted: false, why: 'tiny' }; return null; }
+    var E = cropEdges(small.getContext('2d').getImageData(0, 0, w, h).data, w, h);
+    if (E.ne < 150) { lastCrop = { accepted: false, why: 'edges', ne: E.ne }; return null; }
+    var lines = cropLines(E); if (lines.length < 4) { lastCrop = { accepted: false, why: 'lines', ne: E.ne, lines: lines.length }; return null; }
+    var cands = cropQuads(lines, w, h, stats); if (!cands.length) { lastCrop = { accepted: false, why: 'quads', ne: E.ne, lines: lines.length, pairs: stats.pairs, shaped: stats.shaped }; return null; }
+    var best = null, bestRank = -1e9, rank, fa, dc;
+    for (i = 0; i < cands.length; i++) {
+      checkSides(E, cands[i]); fa = cands[i].fa = cands[i].area / (w * h); dc = Math.hypot(cands[i].cx - w / 2, cands[i].cy - h / 2) / (Math.hypot(w, h) / 2);
+      rank = cands[i].S + (cands[i].cons >= 3 ? 0.04 : 0) + 0.03 * Math.sqrt(fa) - 0.1 * dc - (fa > 0.8 ? (fa - 0.8) : 0)      // among cards that are there: bigger, more central, the same way round on every side
+        - (cands[i].ratio < 1.3 ? 0.2 * (1.3 - cands[i].ratio) / 0.18 : 0) - (cands[i].ratio > 2.1 ? 0.2 * (cands[i].ratio - 2.1) / 0.7 : 0);
+      if (rank > bestRank) { bestRank = rank; best = cands[i]; }
     }
-    var r = Math.max(3, Math.round(Math.min(w, h) * 0.02));
-    mask = dilate(mask, w, h, r);
-    var comp = largestComponent(mask, w, h);
-    if (!comp || comp.count < n * 0.08 || comp.count > n * 0.985) return null;
-    var hull = convexHull(boundaryPoints(comp.labels, w, h, comp.label));
-    if (hull.length < 4) return null;
-    var quad = bestQuad(hull); if (!quad) return null;
-    var hullA = polyArea(hull), quadA = polyArea(quad);
-    if (quadA < hullA * 0.8 || quadA > n * 0.9) return null;
-    var cx = 0, cy = 0; for (i = 0; i < 4; i++) { cx += quad[i][0] / 4; cy += quad[i][1] / 4; }
-    quad = orderCorners(quad.map(function (p) { var dx = p[0] - cx, dy = p[1] - cy, L = Math.hypot(dx, dy) || 1; return [p[0] - dx / L * r * 1.2, p[1] - dy / L * r * 1.2]; }));
-    function len(p, q) { return Math.hypot(p[0] - q[0], p[1] - q[1]); }
-    var ow = (len(quad[0], quad[1]) + len(quad[3], quad[2])) / 2, oh = (len(quad[0], quad[3]) + len(quad[1], quad[2])) / 2;
-    var ratio = Math.max(ow, oh) / Math.min(ow, oh);
-    if (ratio < 1.1 || ratio > 2.6 || Math.min(ow, oh) < 40) return null;
-    var k2 = srcCanvas.width / w;
+    // Only the best-looking quadrilateral is judged. If it fails a check the photo is ambiguous: no crop, and NOT the next best one (on test photos that was about four times as often wrong).
+    var k2 = srcCanvas.width / w, q = best.c.map(function (p) { return [best.cx + (p[0] - best.cx) * CROP.grow, best.cy + (p[1] - best.cy) * CROP.grow]; }), ba = 1e9, bk = 0, ang;
+    for (k = 0; k < 4; k++) { ang = Math.abs(Math.atan2(q[(k + 1) % 4][1] - q[k][1], q[(k + 1) % 4][0] - q[k][0])); if (ang < ba) { ba = ang; bk = k; } }
+    q = [q[bk], q[(bk + 1) % 4], q[(bk + 2) % 4], q[(bk + 3) % 4]];             // the side closest to level is the top: the card is turned as little as possible
+    lastCrop = { accepted: false, why: 'weak', quad: q.map(function (p) { return [p[0] * k2, p[1] * k2]; }), S: best.S, min: best.min, cons: best.cons, Dmed: best.Dmed, fa: best.fa, ratio: best.ratio, sides: best.sides, ne: E.ne, lines: lines.length, pairs: stats.pairs, shaped: stats.shaped, cands: cands.length };
+    if (best.S < CROP.accept || best.min < CROP.minSide || best.Dmed < CROP.minContrast || best.fa < CROP.minArea) return null;
+    lastCrop.accepted = true; lastCrop.why = 'ok';
+    function len(p, r) { return Math.hypot(p[0] - r[0], p[1] - r[1]); }
+    var ow = (len(q[0], q[1]) + len(q[3], q[2])) / 2, oh = (len(q[0], q[3]) + len(q[1], q[2])) / 2;
     var OW = Math.round(ow * k2), OH = Math.round(oh * k2), sc = Math.min(1, 1600 / Math.max(OW, OH));
     OW = Math.max(64, Math.round(OW * sc)); OH = Math.max(64, Math.round(OH * sc));
-    return warp(srcCanvas, quad.map(function (p) { return [p[0] * k2, p[1] * k2]; }), OW, OH);
+    return warp(srcCanvas, lastCrop.quad, OW, OH);
   }
   function toBlob(canvas, q) { return new Promise(function (res) { if (canvas.toBlob) canvas.toBlob(function (b) { res(b || dataToBlob(canvas.toDataURL('image/jpeg', q))); }, 'image/jpeg', q); else res(dataToBlob(canvas.toDataURL('image/jpeg', q))); }); }
   function version(canvas) {
@@ -1951,7 +2072,7 @@ var CONFIG = {
     var u = new Uint8Array(bin.length); for (var k = 0; k < bin.length; k++) u[k] = bin.charCodeAt(k);
     return new Blob([u], { type: mime });
   }
-  function pick(shot) { return shot ? ((useCrop && shot.crop) ? shot.crop : shot.raw) : null; }
+  function pick(shot, full) { return shot ? ((useCrop && !full && shot.crop) ? shot.crop : shot.raw) : null; }
   function updateExportSub() { $('exportSub').textContent = saveUrl() ? 'Each saved card is also sent to your company\u2019s Dataverse. Export is still here for Excel.' : 'Everything stays on this phone until you export it. CSV opens in Excel and imports into Dataverse or Outlook.'; }
   function updatePhotoUI() {
     updateExportSub();
@@ -1972,14 +2093,17 @@ var CONFIG = {
   $('slotFront').addEventListener('click', function () { takeShot('front'); });
   $('slotBack').addEventListener('click', function () { takeShot('back'); });
   $('photoBtn').addEventListener('click', function () { takeShot('front'); });
-  $('cropToggle').addEventListener('click', function () { useCrop = !useCrop; updatePhotoUI(); });
+  $('cropToggle').addEventListener('click', function () {
+    useCrop = !useCrop; updatePhotoUI();
+    if (canRead()) setReadStatus(useCrop ? 'Using the crop. Tap Read the card to read it again.' : 'Using the full photos. Tap Read the card to read them again.', false);
+  });
   function onShot(side, input) {
     var file = input.files && input.files[0]; input.value = '';
     if (!file) return;
     setReadStatus('Finding the card edges', true);
     setTimeout(function () {
       prepPhoto(file).then(function (shot) {
-        shots[side] = shot; draftSource = 'photo'; updatePhotoUI(); setReadStatus('', false);
+        shots[side] = shot; useCrop = true; draftSource = 'photo'; updatePhotoUI(); setReadStatus('', false);
         if (canRead() && navigator.onLine === false) setReadStatus('No signal. Tap Save, read later, and the card is read when you are back online.', false);
         else if (canRead()) readCard('quick');
         else $('cName').focus();
@@ -1990,7 +2114,7 @@ var CONFIG = {
   $('backFile').addEventListener('change', function () { onShot('back', this); });
   $('clearPhotos').addEventListener('click', function () {
     if (readCtl) readCtl.abort();
-    shots = { front: null, back: null }; updatePhotoUI(); setReadStatus('', false); $('readMore').hidden = true;
+    shots = { front: null, back: null }; useCrop = true; updatePhotoUI(); setReadStatus('', false); $('readMore').hidden = true;
   });
   var READ_PROMPT = 'These are photos of one business card: image 1 is the front and image 2, if present, is the back. Read the printed text carefully. Reply with only a JSON object with these string fields, using "" when something is not on the card: {"name": full name of the person as printed (Latin script if both scripts appear), "company": company name, "title": job title, "email": email address, "phone": best direct number with country code as printed (mobile preferred), "website": website or LinkedIn, "address": postal address on one line, "other": anything else useful such as extra numbers, fax, Arabic name, department}. Do not invent values. Example: {"name":"Aisha Al Marri","company":"Example LLC","title":"Sales Director","email":"a@example.com","phone":"+971 50 000 0000","website":"example.com","address":"Office 3, Marina Plaza, Dubai","other":"Fax +971 4 000 0000"}';
   function setReadStatus(msg, busy) {
@@ -1998,28 +2122,43 @@ var CONFIG = {
     st.classList.toggle('busy', !!busy); $('readStop').hidden = !busy;
   }
   function showReadMore() { $('readMore').hidden = !!(readerUrl() && !CONFIG.readerCareful); }
-  function readCard(tier) {
+  function emptyRead(r) {         // the reader answered, but with nothing a person could use
+    var keys = ['name', 'company', 'title', 'email', 'phone', 'website', 'address'], i;
+    if (!r || typeof r !== 'object') return true;
+    for (i = 0; i < keys.length; i++) if (String(r[keys[i]] == null ? '' : r[keys[i]]).trim()) return false;
+    return true;
+  }
+  function readCard(tier, opt) {
+    opt = opt || {};
     if (!canRead()) { $('cName').focus(); return; }
     var parts = [];
-    if (shots.front) parts.push({ side: 'front', v: pick(shots.front) });
-    if (shots.back) parts.push({ side: 'back', v: pick(shots.back) });
+    if (shots.front) parts.push({ side: 'front', v: pick(shots.front, opt.full) });
+    if (shots.back) parts.push({ side: 'back', v: pick(shots.back, opt.full) });
+    var cropped = !opt.full && useCrop && !!((shots.front && shots.front.crop) || (shots.back && shots.back.crop));
+    function retryFull() {          // the crop found nothing, or the reader could not use it: read the full photo once, which is what retaking the photo used to achieve
+      useCrop = false; updatePhotoUI(); readCard(tier, { full: true, retried: true });
+    }
     var imgs = parts.map(function (p) { return p.v.blob || dataToBlob(p.v.data); });
     if (!imgs.length) { toast('Add a photo of the card first.'); return; }
     if (readCtl) readCtl.abort();
     readCtl = new AbortController();
     var careful = tier === 'default';
-    setReadStatus(careful ? 'Reading carefully, this takes longer' : 'Reading the card', true);
+    setReadStatus(opt.retried ? 'Nothing found in the crop. Trying the full photo' : (careful ? 'Reading carefully, this takes longer' : 'Reading the card'), true);
     $('readBtn').disabled = true; $('readMore').hidden = true;
     var done = function (r) {
       $('readBtn').disabled = false;
-      if (!r || typeof r !== 'object' || Array.isArray(r)) { setReadStatus('Couldn\u2019t read this card. Try a clearer photo or type the details.', false); showReadMore(); return; }
+      if (emptyRead(r)) {
+        if (cropped) { retryFull(); return; }
+        setReadStatus('Couldn\u2019t read this card. Try a clearer photo or type the details.', false); showReadMore(); return;
+      }
       setReadStatus('', false); applyRead(r); showReadMore();
-      toast(shots.back ? 'Filled from both sides. Check and save.' : 'Filled from the front. Add the back if it has more.');
+      toast(opt.retried ? 'The crop missed the card, so the full photo was read. Check and save.' : (shots.back ? 'Filled from both sides. Check and save.' : 'Filled from the front. Add the back if it has more.'));
     };
     if (readerUrl()) {
       readViaEndpoint(parts.map(function (p, i) { return { side: p.side, blob: imgs[i] }; }), careful, readCtl.signal).then(done, function (e) {
         $('readBtn').disabled = false;
         if (e && e.name === 'AbortError') { setReadStatus('', false); return; }
+        if (cropped && e && e.code === 'http' && e.status !== 401 && e.status !== 403) { retryFull(); return; }
         var msg = (e && e.code === 'http') ? ((e.status === 401 || e.status === 403) ? 'The card reader refused this phone. Ask for a new setup link.' : 'The card reader couldn\u2019t read this one. Try a closer, sharper photo.')
           : (e && e.code === 'bad_json') ? 'The card reader sent something this app couldn\u2019t use.'
           : 'The card reader didn\u2019t answer. Tap Read the card again, or Save, read later.';
@@ -2054,9 +2193,12 @@ var CONFIG = {
     if (other) { var n = $('cNote'), tag = 'From the card: '; if (n.value.indexOf(tag) < 0) n.value = (n.value ? n.value + '\n' : '') + tag + other; else n.value = n.value.replace(/From the card: [^\n]*/, tag + other); }
   }
   $('readBtn').addEventListener('click', function () { readCard('quick'); });
-  $('readCareful').addEventListener('click', function () { readCard('default'); });
+  $('readCareful').addEventListener('click', function () {
+    if (useCrop && ((shots.front && shots.front.crop) || (shots.back && shots.back.crop))) { useCrop = false; updatePhotoUI(); }     // the first read used the crop; when the result looks off the crop is the first thing to doubt, so read the full photo this time
+    readCard('default');
+  });
   $('readStop').addEventListener('click', function () { if (readCtl) readCtl.abort(); });
-  window.__cardsDebug = { shots: function () { return shots; }, autoCrop: autoCrop, fitCanvas: fitCanvas };
+  window.__cardsDebug = { shots: function () { return shots; }, autoCrop: autoCrop, fitCanvas: fitCanvas, lastCrop: function () { return lastCrop; }, crop: CROP };
   $('typeBtn').addEventListener('click', function () { $('cName').focus(); });
 
   /* ---------- read later (R23): photos taken without signal are kept and read when the phone is back online ---------- */
